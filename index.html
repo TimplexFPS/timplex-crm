@@ -81,6 +81,8 @@ const cloud = {
     catch (e) { throw friendly(e); }
   },
   async saveDoc(payload) {
+    // Firestore refuses `undefined`; the JSON round-trip drops those keys entirely.
+    try { payload = JSON.parse(JSON.stringify(payload)); } catch (e) {}
     try { await setDoc(DOC, { payload, __at: payload.__at, updatedBy: cloud.currentEmail() || "?", updatedAt: serverTimestamp() }); }
     catch (e) { throw friendly(e); }
   },
