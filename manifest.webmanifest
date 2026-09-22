@@ -1,0 +1,16 @@
+{
+  "name": "Timplex CRM",
+  "short_name": "Timplex CRM",
+  "description": "Timplex Leads-Bids CRM — projects, contacts and sales dashboard.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f1a24",
+  "theme_color": "#0f1a24",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
