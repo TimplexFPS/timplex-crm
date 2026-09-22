@@ -3186,7 +3186,7 @@ input,button,textarea{font-family:inherit}
             <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:#ffd6dc;font-size:13.5px;font-weight:600">{{ pdfStatus }}</div>
           </sc-if>
           <sc-if value="{{ pdfReady }}">
-            <iframe src="{{ pdfUrl }}" title="PDF" style="width:100%;height:100%;border:0;display:block;background:#525659"></iframe>
+            <div ref="{{ pdfRef }}" style="position:absolute;inset:0;overflow:auto;padding:16px;display:flex;flex-direction:column;align-items:center;gap:14px"></div>
           </sc-if>
         </div>
       </div>
@@ -4227,6 +4227,8 @@ class Component extends DCLogic {
           this.setState(s => ({ rows: s.rows.map(r => r.id === rowId ? Object.assign({}, r, { po: f.name, poRef: res.id, poBackend: 'firestore', poUrl: '', poSize: f.size, poBusy: false }) : r) }));
         } else {
           const url = URL.createObjectURL(f);
+          this.localBlobs = this.localBlobs || {};
+          this.localBlobs[rowId] = f;
           this.setState(s => ({ rows: s.rows.map(r => r.id === rowId ? Object.assign({}, r, { po: f.name, poRef: '', poUrl: url, poBackend: 'local', poSize: f.size, poBusy: false }) : r) }));
         }
       } catch (e) {
@@ -4241,13 +4243,14 @@ class Component extends DCLogic {
   async viewPdf(row) {
     const cloud = this.cloud();
     const meta = row.poSize ? Math.max(1, Math.round(row.poSize / 1024)) + ' KB' : '';
-    if (row.poBackend === 'local' && row.poUrl) { this.setState({ pdfView: { name: row.po, url: row.poUrl, meta } }); return; }
+    if (row.poBackend === 'local' && row.poUrl) { this.pdfBlob = (this.localBlobs || {})[row.id] || null; this.setState({ pdfView: { name: row.po, url: row.poUrl, meta } }); return; }
     if (row.poBackend === 'firestore' && row.poRef && cloud) {
       this.setState({ pdfView: { name: row.po, url: '', meta, status: 'Loading PDF…' } });
       try {
         const blob = await cloud.fetchPo(row.poRef, (done, total) => this.setState(s => s.pdfView && !s.pdfView.url ? { pdfView: Object.assign({}, s.pdfView, { status: 'Loading PDF… ' + Math.round(done / total * 100) + '%' }) } : null));
         const url = URL.createObjectURL(blob);
         this.pdfUrl = url;
+        this.pdfBlob = blob;
         this.setState(s => s.pdfView ? { pdfView: Object.assign({}, s.pdfView, { url, meta: Math.max(1, Math.round(blob.size / 1024)) + ' KB' }) } : null);
       } catch (e) {
         console.error('[PO view]', e);
@@ -4257,8 +4260,58 @@ class Component extends DCLogic {
     }
     this.notice('PDF unavailable', 'This PDF was attached before the cloud was connected. Remove it (✕) and upload it again.');
   }
+  // Chrome/Safari often refuse to render a blob: PDF inside the page, so the pages are
+  // drawn onto canvases with pdf.js — same result on desktop, iPad and phone.
+  ensurePdfJs() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (this.pdfJsPromise) return this.pdfJsPromise;
+    this.pdfJsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js';
+      s.onload = () => {
+        const lib = window.pdfjsLib;
+        if (!lib) return reject(new Error('PDF viewer did not load.'));
+        lib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+        resolve(lib);
+      };
+      s.onerror = () => { this.pdfJsPromise = null; reject(new Error('Could not load the PDF viewer (no internet?).')); };
+      document.head.appendChild(s);
+    });
+    return this.pdfJsPromise;
+  }
+  async renderPdfPages() {
+    const host = this.pdfHost, blob = this.pdfBlob;
+    if (!host || !blob || host.__blob === blob) return;
+    host.__blob = blob;
+    host.innerHTML = '<div style="color:#dfe4ef;font:600 13.5px Figtree,sans-serif;padding:24px">Rendering…</div>';
+    try {
+      const lib = await this.ensurePdfJs();
+      const data = new Uint8Array(await blob.arrayBuffer());
+      const pdf = await lib.getDocument({ data }).promise;
+      if (host.__blob !== blob) return;
+      host.innerHTML = '';
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      const cssW = Math.min(Math.max(host.clientWidth - 32, 280), 980);
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const base = page.getViewport({ scale: 1 });
+        const vp = page.getViewport({ scale: (cssW / base.width) * dpr });
+        const c = document.createElement('canvas');
+        c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+        c.style.cssText = 'width:' + Math.round(vp.width / dpr) + 'px;max-width:100%;height:auto;display:block;background:#fff;box-shadow:0 4px 18px rgba(0,0,0,.35);border-radius:2px';
+        if (host.__blob !== blob) return;
+        host.appendChild(c);
+        await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+      }
+    } catch (e) {
+      console.error('[pdf render]', e);
+      if (host.__blob === blob) host.innerHTML = '<div style="color:#ffd6dc;font:600 13.5px Figtree,sans-serif;padding:24px;text-align:center;max-width:420px">Could not show the preview here. Use <b>Download</b> or <b>Open in new tab</b> — the file itself is fine.</div>';
+    }
+  }
   closePdf() {
     if (this.pdfUrl) { const u = this.pdfUrl; this.pdfUrl = null; setTimeout(() => URL.revokeObjectURL(u), 60000); }
+    this.pdfBlob = null;
+    if (this.pdfHost) { this.pdfHost.__blob = null; this.pdfHost.innerHTML = ''; this.pdfHost = null; }
     this.setState({ pdfView: null });
   }
 
@@ -5230,6 +5283,7 @@ class Component extends DCLogic {
       hasPdfView: !!st.pdfView, pdfName: st.pdfView ? st.pdfView.name : '', pdfMeta: st.pdfView ? st.pdfView.meta : '', pdfUrl: st.pdfView ? st.pdfView.url : '',
       pdfReady: !!(st.pdfView && st.pdfView.url), pdfLoading: !!(st.pdfView && !st.pdfView.url && !st.pdfView.error), pdfError: !!(st.pdfView && st.pdfView.error),
       pdfStatus: st.pdfView ? (st.pdfView.error || st.pdfView.status || 'Loading PDF…') : '', closePdf: () => this.closePdf(),
+      pdfRef: this.pdfRefFn || (this.pdfRefFn = (el) => { this.pdfHost = el; if (el) this.renderPdfPages(); }),
       exportBackup: () => this.exportBackup(), importBackup: () => this.importBackup(),
       addRow: () => this.setState(s => ({ rows: s.rows.concat({ id: 'n' + Date.now(), number: this.nextProjectNumber(), name: 'NEW PROJECT NAME', old: '', city: '', stage: 'New Lead', estimator: 'Undefined', scope: [], received: '', due: '', area: '', by: 'PQ', byColor: '#a25ddc', lead: 'None', contacts: [], group: 'New Leads', proposal: '', signed: false, deal: '', po: '' }) })),
       isBrowser: st.device === 'browser', isTablet: st.device === 'tablet', isPhone: st.device === 'phone',
