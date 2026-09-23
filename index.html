@@ -2226,7 +2226,7 @@ input,button,textarea{font-family:inherit}
 
               <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
               <div style="background:#fff;border:1px solid #e3e6ef;border-radius:12px;overflow:clip;box-shadow:0 1px 3px rgba(20,25,45,.05)">
-                <div style="display:flex;background:#fafbfe;border-bottom:1px solid #e3e6ef;position:relative">
+                <div style="display:flex;background:#fafbfe;border-bottom:1px solid #e3e6ef;position:sticky;top:0;z-index:6;box-shadow:0 2px 4px -2px rgba(20,25,45,.12)">
                   <div style="width:6px;flex:none;background:{{ g.color }};position:sticky;left:0;z-index:4"></div>
                   <sc-for list="{{ headCells }}" as="h" hint-placeholder-count="8">
                     <div style="{{ h.style }}">
@@ -2555,7 +2555,7 @@ input,button,textarea{font-family:inherit}
             </div>
             <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
             <div style="min-width:max-content;border-radius:4px 4px 0 0;overflow:visible">
-              <div style="display:flex;background:#fff;border-top:1px solid #d0d4e4;border-bottom:1px solid #d0d4e4;position:relative">
+              <div style="display:flex;background:#fff;border-top:1px solid #d0d4e4;border-bottom:1px solid #d0d4e4;position:sticky;top:0;z-index:6;box-shadow:0 2px 4px -2px rgba(20,25,45,.12)">
                 <div style="width:6px;flex:none;background:{{ g.color }};border-radius:4px 0 0 0"></div>
                 <div style="width:40px;flex:none;display:flex;align-items:center;justify-content:center;border-right:1px solid #d0d4e4">
                   <span onClick="{{ g.toggleAll }}" style="{{ g.allBox }}">{{ g.allMark }}</span>
