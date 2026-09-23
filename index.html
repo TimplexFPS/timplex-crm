@@ -2130,9 +2130,9 @@ input,button,textarea{font-family:inherit}
     </span>
     <span style="font-size:10px;font-weight:600;color:#fff;white-space:nowrap;flex:none">{{ currentUser }}</span>
     <button onClick="{{ signOut }}" style="background:transparent;border:0;color:rgba(255,255,255,.75);font-size:10px;font-weight:600;cursor:pointer;padding:7px 12px;border-radius:9px;transition:all .16s;white-space:nowrap;flex:none" style-hover="color:#fff;background:rgba(255,255,255,.1)">Sign Out</button>
-    <button onClick="{{ openSettings }}" style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.1);color:#fff;border:0;padding:7px 13px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;flex:none" style-hover="background:rgba(255,255,255,.2)">
+    <sc-if value="{{ isBrowser }}"><button onClick="{{ openSettings }}" style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.1);color:#fff;border:0;padding:7px 13px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;flex:none" style-hover="background:rgba(255,255,255,.2)">
       <span style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-radius:50%"></span>Settings · Labels
-    </button>
+    </button></sc-if>
   </div>
   </sc-if>
 
@@ -2225,9 +2225,9 @@ input,button,textarea{font-family:inherit}
               </sc-if>
 
               <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
-              <div style="background:#fff;border:1px solid #e3e6ef;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(20,25,45,.05)">
+              <div style="background:#fff;border:1px solid #e3e6ef;border-radius:12px;overflow:clip;box-shadow:0 1px 3px rgba(20,25,45,.05)">
                 <div style="display:flex;background:#fafbfe;border-bottom:1px solid #e3e6ef;position:relative">
-                  <div style="width:6px;flex:none;background:{{ g.color }}"></div>
+                  <div style="width:6px;flex:none;background:{{ g.color }};position:sticky;left:0;z-index:4"></div>
                   <sc-for list="{{ headCells }}" as="h" hint-placeholder-count="8">
                     <div style="{{ h.style }}">
                       <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ h.label }}</span>
@@ -2238,7 +2238,7 @@ input,button,textarea{font-family:inherit}
 
                 <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="6">
                   <div style="{{ r.rowStyle }}">
-                    <div style="width:6px;flex:none;background:{{ g.color }};opacity:.55"></div>
+                    <div style="width:6px;flex:none;position:sticky;left:0;z-index:3;background:#fff"><div style="height:100%;background:{{ g.color }};opacity:.55"></div></div>
                     <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="8">
                       <div onClick="{{ c.onClick }}" style="{{ c.style }}">
                         <sc-if value="{{ c.isEdit }}"><input autoFocus="{{ true }}" defaultValue="{{ c.raw }}" onBlur="{{ c.commit }}" onKeyDown="{{ c.keyDown }}" style="width:100%;border:2px solid #2b6ef0;border-radius:6px;padding:4px 6px;font-size:12.5px;outline:0;color:#1d2233"></sc-if>
@@ -2265,7 +2265,7 @@ input,button,textarea{font-family:inherit}
                 <div onClick="{{ addRow }}" style="display:flex;align-items:center;gap:8px;padding:10px 16px;font-size:12.5px;color:#8a90a2;cursor:pointer;border-top:1px solid #eef0f6" style-hover="background:#fafbfe;color:#2b6ef0">+ Add project</div>
 
                 <div style="display:flex;align-items:stretch;border-top:1px solid #d0d4e4;background:#fbfbfd;min-height:46px">
-                  <div style="width:6px;flex:none;background:{{ g.color }};opacity:.3"></div>
+                  <div style="width:6px;flex:none;position:sticky;left:0;z-index:3;background:#fbfbfd"><div style="height:100%;background:{{ g.color }};opacity:.3"></div></div>
                   <sc-for list="{{ g.summary }}" as="s" hint-placeholder-count="8">
                     <div style="{{ s.style }}">
                       <sc-if value="{{ s.isAvatars }}">
@@ -2776,47 +2776,35 @@ input,button,textarea{font-family:inherit}
   </div>
   </sc-if>
 
-  <sc-if value="{{ isTablet }}">
-  <div style="display:flex;justify-content:center">
-    <div style="width:100%">
-      <div style="background:#f6f7fb;overflow:hidden;height:calc(100vh - 44px);display:flex;flex-direction:column">
-        <div style="display:flex;flex:1;min-height:0">
-          <div style="width:180px;flex:none;background:#fff;border-right:1px solid #e3e6ef;padding:12px 9px;display:flex;flex-direction:column;gap:3px">
-            <button onClick="{{ goBoard }}" style="{{ navBoard }}">LEADS-BIDS</button>
-            <button onClick="{{ goDash }}" style="{{ navDash }}">SALES DASHBOARD</button>
-            <button onClick="{{ goContacts }}" style="{{ navContacts }}">CONTACTS</button>
-          </div>
-          <div style="flex:1;min-width:0;overflow:auto;padding:12px">
-            <sc-for list="{{ padRows }}" as="r" hint-placeholder-count="6">
-              <div style="background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:11px 13px;margin-bottom:9px;display:flex;align-items:center;gap:12px;animation:rowIn .3s both">
-                <span style="width:5px;height:34px;border-radius:4px;background:{{ r.stageColor }};flex:none"></span>
-                <div style="flex:1;min-width:0">
-                  <div style="font-size:13px;font-weight:700;color:#1d2233;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</div>
-                  <div style="font-size:11px;color:#8a90a2">#{{ r.number }} · {{ r.city }}</div>
-                </div>
-                <span style="{{ r.stageStyle }}">{{ r.stage }}</span>
-                <span style="{{ r.estStyle }}">{{ r.estimator }}</span>
-                <span style="font-size:12px;font-weight:700;color:#1d2233;width:92px;text-align:right">{{ r.price }}</span>
-              </div>
-            </sc-for>
-          </div>
+  <sc-if value="{{ isTouch }}">
+  <div style="position:fixed;top:44px;left:0;right:0;bottom:0;display:flex;flex-direction:column;background:#f6f7fb">
+    <sc-if value="{{ showBoard }}" hint-placeholder-val="{{ true }}">
+    <div style="background:#fff;border-bottom:1px solid #e3e6ef;padding:10px 14px 0;flex:none">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:19px;font-weight:800;color:#1d2233;letter-spacing:-.3px">Leads-Bids</div>
+          <div style="font-size:11.5px;color:#8a90a2">{{ mobCountLabel }}</div>
+        </div>
+        <div style="display:flex;gap:3px;background:#f3f5fb;padding:3px;border-radius:10px;border:1px solid #e3e6ef;flex:none">
+          <button onClick="{{ mobSetList }}" style="{{ mobTabList }}">List</button>
+          <button onClick="{{ mobSetKanban }}" style="{{ mobTabKanban }}">Kanban</button>
         </div>
       </div>
+      <div style="display:flex;align-items:center;gap:8px;border:1px solid #e3e6ef;border-radius:10px;padding:8px 11px;background:#fff;margin-top:10px">
+        <span style="display:inline-block;width:11px;height:11px;border:2px solid #8a90a2;border-radius:50%;flex:none"></span>
+        <input value="{{ search }}" onChange="{{ onSearch }}" placeholder="Search projects" style="border:0;outline:0;font-size:16px;flex:1;min-width:0;color:#1d2233;background:transparent">
+      </div>
+      <div style="display:flex;gap:6px;overflow-x:auto;padding:10px 0 12px">
+        <sc-for list="{{ mobStageChips }}" as="f" hint-placeholder-count="6">
+          <button onClick="{{ f.pick }}" style="{{ f.style }}"><span style="{{ f.dot }}"></span>{{ f.name }}<span style="opacity:.7;font-weight:600">{{ f.count }}</span></button>
+        </sc-for>
+      </div>
     </div>
-  </div>
-  </sc-if>
-
-  <sc-if value="{{ isPhone }}">
-  <div style="display:flex;justify-content:center">
-    <div style="width:100%">
-      <div style="background:#f6f7fb;overflow:hidden;height:calc(100vh - 44px);display:flex;flex-direction:column;position:relative">
-        <div style="background:#fff;padding:6px 16px 12px;border-bottom:1px solid #e3e6ef">
-          <div style="font-size:19px;font-weight:800;color:#1d2233;letter-spacing:-.3px">Leads-Bids</div>
-          <div style="font-size:11.5px;color:#8a90a2">{{ totalRows }} projects · New Leads</div>
-        </div>
-        <sc-if value="{{ showBoard }}" hint-placeholder-val="{{ true }}"><div style="flex:1;overflow:auto;padding:12px 12px 90px;display:flex;flex-direction:column;gap:10px">
+    <sc-if value="{{ mobIsList }}" hint-placeholder-val="{{ true }}">
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:12px 12px 24px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px">
           <sc-for list="{{ padRows }}" as="r" hint-placeholder-count="6">
-            <div style="background:#fff;border:1px solid #e3e6ef;border-radius:14px;overflow:hidden;flex:none;animation:slideUp .32s both">
+            <div style="background:#fff;border:1px solid #e3e6ef;border-radius:14px;overflow:hidden;flex:none">
               <div style="height:4px;background:{{ r.stageColor }}"></div>
               <div style="padding:11px 13px">
                 <div style="font-size:13.5px;font-weight:700;color:#1d2233;line-height:1.3">{{ r.name }}</div>
@@ -2830,38 +2818,210 @@ input,button,textarea{font-family:inherit}
             </div>
           </sc-for>
         </div>
-        </sc-if>
-        <sc-if value="{{ showDash }}">
-          <div style="flex:1;overflow:auto;padding:12px 12px 90px;display:flex;flex-direction:column;gap:10px">
-            <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
-              <div style="background:#fff;border:1px solid #e3e6ef;border-radius:14px;padding:14px 16px">
-                <div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a90a2">{{ k.label }}</div>
-                <div style="font-size:26px;font-weight:800;letter-spacing:-.8px;color:{{ k.color }};margin-top:4px">{{ k.value }}</div>
-                <div style="font-size:11px;color:#8a90a2">{{ k.sub }}</div>
-              </div>
-            </sc-for>
-          </div>
-        </sc-if>
-        <sc-if value="{{ showContacts }}">
-          <div style="flex:1;overflow:auto;padding:12px 12px 90px;display:flex;flex-direction:column;gap:8px">
-            <sc-for list="{{ mobileContacts }}" as="p" hint-placeholder-count="8">
-              <div style="background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:11px">
-                <span style="width:30px;height:30px;border-radius:50%;background:#e9edf8;color:#4a5064;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">{{ p.initials }}</span>
-                <div style="min-width:0;flex:1">
-                  <div style="font-size:13px;font-weight:700;color:#1d2233;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
-                  <div style="font-size:11px;color:#8a90a2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.company }}</div>
+        <sc-if value="{{ mobEmpty }}"><div style="padding:40px 12px;text-align:center;font-size:13px;color:#8a90a2">No projects match this filter</div></sc-if>
+      </div>
+    </sc-if>
+    <sc-if value="{{ mobIsKanban }}">
+      <div style="flex:1;min-height:0;overflow-x:auto;overflow-y:hidden;display:flex;gap:12px;padding:12px;scroll-snap-type:x mandatory">
+        <sc-for list="{{ mobKanban }}" as="col" hint-placeholder-count="3">
+          <div style="width:min(84vw,320px);flex:none;display:flex;flex-direction:column;max-height:100%;background:#fff;border:1px solid #e3e6ef;border-radius:14px;overflow:hidden;scroll-snap-align:start">
+            <div style="height:5px;background:{{ col.color }};flex:none"></div>
+            <div style="display:flex;align-items:center;gap:8px;padding:11px 14px;border-bottom:1px solid #eef0f6;flex:none">
+              <span style="font-size:13.5px;font-weight:700;color:#1d2233">{{ col.name }}</span>
+              <span style="font-size:11px;font-weight:700;color:#8a90a2;background:#f3f5fb;padding:2px 7px;border-radius:20px">{{ col.count }}</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:9px;background:#fafbfe">
+              <sc-for list="{{ col.cards }}" as="r" hint-placeholder-count="3">
+                <div style="background:#fff;border:1px solid #e3e6ef;border-radius:14px;overflow:hidden;flex:none">
+              <div style="height:4px;background:{{ r.stageColor }}"></div>
+              <div style="padding:11px 13px">
+                <div style="font-size:13.5px;font-weight:700;color:#1d2233;line-height:1.3">{{ r.name }}</div>
+                <div style="font-size:11px;color:#8a90a2;margin:3px 0 9px">#{{ r.number }} · {{ r.city }}</div>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                  <span style="{{ r.stageStyle }}">{{ r.stage }}</span>
+                  <span style="{{ r.estStyle }}">{{ r.estimator }}</span>
+                  <span style="margin-left:auto;font-size:13px;font-weight:800;color:#1d2233">{{ r.price }}</span>
                 </div>
               </div>
-            </sc-for>
+            </div>
+              </sc-for>
+            </div>
           </div>
-        </sc-if>
-        <div style="position:absolute;left:0;right:0;bottom:0;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);border-top:1px solid #e3e6ef;display:flex;justify-content:space-around;padding:9px 0 14px">
-          <button onClick="{{ goBoard }}" style="{{ mobBoard }}">Board</button>
-          <button onClick="{{ goDash }}" style="{{ mobDash }}">Dashboard</button>
-          <button onClick="{{ goContacts }}" style="{{ mobContacts }}">Contacts</button>
-          <button onClick="{{ openSettings }}" style="{{ mobSettings }}">Settings</button>
-        </div>
+        </sc-for>
+        <sc-if value="{{ mobEmpty }}"><div style="flex:1;padding:40px 12px;text-align:center;font-size:13px;color:#8a90a2">No projects match this filter</div></sc-if>
       </div>
+    </sc-if>
+    </sc-if>
+    <sc-if value="{{ showDash }}">
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:12px 12px 24px;display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="font-size:19px;font-weight:800;color:#1d2233;letter-spacing:-.3px;flex:1;min-width:0">Sales Dashboard</div>
+          <div style="position:relative">
+            <button onClick="{{ toggleYear }}" style="{{ yearBtnStyle }}">{{ yearFilterLabel }} <span style="font-size:9px;opacity:.65">▾</span></button>
+            <sc-if value="{{ yearOpen }}">
+              <div style="position:absolute;right:0;top:40px;z-index:70;width:170px;background:#fff;border-radius:11px;box-shadow:0 14px 40px rgba(15,20,40,.24),0 0 0 1px #e3e6ef;padding:7px;display:flex;flex-direction:column;gap:2px">
+                <sc-for list="{{ yearOptions }}" as="y" hint-placeholder-count="3"><button onClick="{{ y.pick }}" style="{{ y.style }}">{{ y.name }}</button></sc-for>
+              </div>
+            </sc-if>
+          </div>
+          <div style="position:relative">
+            <button onClick="{{ toggleMonth }}" style="{{ monthBtnStyle }}">{{ monthFilterLabel }} <span style="font-size:9px;opacity:.65">▾</span></button>
+            <sc-if value="{{ monthOpen }}">
+              <div style="position:absolute;right:0;top:40px;z-index:70;width:210px;max-height:290px;overflow:auto;background:#fff;border-radius:11px;box-shadow:0 14px 40px rgba(15,20,40,.24),0 0 0 1px #e3e6ef;padding:7px;display:flex;flex-direction:column;gap:2px">
+                <sc-for list="{{ monthOptions }}" as="m" hint-placeholder-count="13"><button onClick="{{ m.pick }}" style="{{ m.style }}"><span style="flex:1">{{ m.name }}</span><span style="font-size:10.5px;color:#9699a6">{{ m.count }}</span></button></sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+          <div style="background:#fff;border:1px solid #e3e6ef;border-radius:14px;padding:14px 16px;flex:none">
+            <div style="font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#8a90a2">{{ k.label }}</div>
+            <div style="font-size:26px;font-weight:800;letter-spacing:-.8px;color:{{ k.color }};margin-top:4px">{{ k.value }}</div>
+            <div style="font-size:11px;color:#8a90a2">{{ k.sub }}</div>
+          </div>
+        </sc-for>
+        <sc-for list="{{ mobWidgets }}" as="w" hint-placeholder-count="7">
+              <div style="{{ w.style }}">
+                <div style="display:flex;align-items:center;gap:8px;padding:12px 14px 10px;border-bottom:1px solid #eef0f6;user-select:none;position:relative">
+                  
+                  <span style="font-size:15.5px;font-weight:600;color:#323338;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.title }}</span>
+                  <div style="flex:1"></div>
+                  <span style="font-size:11px;color:#9699a6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%">{{ w.subtitle }}</span>
+                  
+                </div>
+
+                <sc-if value="{{ w.isEmpty }}">
+                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px;color:#9699a6;font-size:12.5px;text-align:center">
+                    <span style="width:34px;height:34px;border-radius:50%;border:1.5px dashed #c3c6d4;display:block"></span>
+                    No projects match this widget's filters
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ w.isGauge }}">
+                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:14px 18px 16px;min-height:0">
+                    <div style="{{ w.gaugeWrap }}">
+                      <div style="position:absolute;left:11%;bottom:8%;width:78%;height:67%;overflow:hidden">
+                        <div style="position:absolute;left:50%;top:0;height:200%;aspect-ratio:1;transform:translateX(-50%);border-radius:50%;background:{{ w.gaugeBg }}">
+                          <div style="position:absolute;left:23%;top:23%;right:23%;bottom:23%;border-radius:50%;background:#fff"></div>
+                        </div>
+                      </div>
+                      <div style="{{ w.markerStyle }}"><span style="position:absolute;left:50%;top:-7px;transform:translateX(-50%);font-size:12px;color:#1d2233;line-height:1">▼</span></div>
+                      <div style="{{ w.needleStyle }}"></div>
+                      <span style="position:absolute;left:7%;bottom:6%;transform:translate(-50%,50%);font-size:11.5px;color:#323338">{{ w.t0 }}</span>
+                      <span style="position:absolute;left:15%;bottom:51%;transform:translate(-50%,50%);font-size:11.5px;color:#323338">{{ w.t1 }}</span>
+                      <span style="position:absolute;left:37%;bottom:78%;transform:translate(-50%,50%);font-size:11.5px;color:#323338">{{ w.t2 }}</span>
+                      <span style="position:absolute;left:63%;bottom:78%;transform:translate(-50%,50%);font-size:11.5px;color:#323338">{{ w.t3 }}</span>
+                      <span style="position:absolute;left:85%;bottom:51%;transform:translate(-50%,50%);font-size:11.5px;color:#323338">{{ w.t4 }}</span>
+                      <span style="position:absolute;left:93%;bottom:6%;transform:translate(-50%,50%);font-size:11.5px;color:#323338">{{ w.t5 }}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;width:100%;padding:0 6%;margin-top:6px">
+                      <div style="text-align:center"><div style="font-size:11.5px;letter-spacing:.08em;color:#676879">ACTUAL</div><div style="font-size:26px;font-weight:700;color:#323338">{{ w.actual }}</div></div>
+                      <div style="text-align:center"><div style="font-size:11.5px;letter-spacing:.08em;color:#676879">TARGET</div><div style="font-size:26px;font-weight:700;color:#323338">{{ w.target }}</div></div>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ w.isColumn }}">
+                  <div style="flex:1;display:flex;flex-direction:column;padding:16px 18px 12px;min-height:0">
+                    <div style="flex:1;display:flex;align-items:flex-end;gap:10px;min-height:0;border-bottom:1px solid #d0d4e4;padding:0 8px">
+                      <sc-for list="{{ w.series }}" as="b" hint-placeholder-count="6">
+                        <div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:5px;height:100%">
+                          <span style="font-size:12px;font-weight:700;color:#323338;white-space:nowrap">{{ b.short }}</span>
+                          <div title="{{ b.name }}" style="{{ b.barStyle }}"></div>
+                        </div>
+                      </sc-for>
+                    </div>
+                    <div style="display:flex;gap:10px;padding:6px 8px 0">
+                      <sc-for list="{{ w.series }}" as="b" hint-placeholder-count="6">
+                        <span style="flex:1;min-width:0;font-size:10.5px;color:#323338;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.name }}</span>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ w.isBar }}">
+                  <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:9px;padding:14px 20px;min-height:0;overflow:auto">
+                    <sc-for list="{{ w.series }}" as="b" hint-placeholder-count="6">
+                      <div style="display:flex;align-items:center;gap:10px">
+                        <span style="width:34%;max-width:170px;font-size:12px;color:#323338;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right">{{ b.name }}</span>
+                        <div style="flex:1;height:16px;background:#f0f1f5;border-radius:3px;overflow:hidden"><div style="{{ b.hStyle }}"></div></div>
+                        <span style="width:74px;font-size:12px;font-weight:700;color:#323338;white-space:nowrap">{{ b.short }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ w.isPie }}">
+                  <div style="flex:1;display:flex;align-items:center;gap:20px;padding:14px 22px;min-height:0">
+                    <div style="flex:1;display:flex;align-items:center;justify-content:center;min-width:0;height:100%">
+                      <div style="{{ w.pieStyle }}">
+                        <sc-if value="{{ w.isDonut }}">
+                          <div style="position:absolute;inset:26%;border-radius:50%;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center">
+                            <span style="font-size:15px;font-weight:800;color:#323338;white-space:nowrap">{{ w.totalShort }}</span>
+                            <span style="font-size:9.5px;color:#9699a6;letter-spacing:.06em">TOTAL</span>
+                          </div>
+                        </sc-if>
+                      </div>
+                    </div>
+                    <div style="display:flex;flex-direction:column;gap:8px;width:44%;max-width:210px;flex:none;overflow:auto;max-height:100%">
+                      <sc-for list="{{ w.series }}" as="l" hint-placeholder-count="6">
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <span style="width:11px;height:11px;border-radius:50%;background:{{ l.color }};flex:none"></span>
+                          <span style="font-size:12px;color:#323338;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ l.legend }}</span>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ w.isLine }}">
+                  <div style="flex:1;display:flex;flex-direction:column;padding:18px 20px 12px;min-height:0">
+                    <div style="flex:1;position:relative;min-height:0;border-bottom:1px solid #d0d4e4;margin:0 22px 0 8px">
+                      <svg viewBox="0 0 100 60" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;overflow:visible">
+                        <polygon points="{{ w.areaPoints }}" fill="rgba(0,115,234,.10)"></polygon>
+                        <polyline points="{{ w.linePoints }}" fill="none" stroke="#0073ea" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"></polyline>
+                      </svg>
+                      <sc-for list="{{ w.dots }}" as="d" hint-placeholder-count="6">
+                        <div style="{{ d.style }}"><span style="position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:11px;font-weight:700;color:#323338;white-space:nowrap">{{ d.short }}</span></div>
+                      </sc-for>
+                    </div>
+                    <div style="display:flex;padding:6px 22px 0 8px">
+                      <sc-for list="{{ w.series }}" as="b" hint-placeholder-count="6">
+                        <span style="flex:1;min-width:0;font-size:10.5px;color:#323338;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.name }}</span>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-if>
+
+                <sc-if value="{{ w.isValue }}">
+                  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:10px 16px">
+                    <span style="{{ w.numStyle }}">{{ w.value }}</span>
+                    <span style="font-size:11.5px;color:#9699a6;text-align:center">{{ w.valueSub }}</span>
+                  </div>
+                </sc-if>
+
+                
+              </div>
+            </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ showContacts }}">
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:12px 12px 24px;display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ mobileContacts }}" as="p" hint-placeholder-count="8">
+          <div style="background:#fff;border:1px solid #e3e6ef;border-radius:12px;padding:11px 13px;display:flex;align-items:center;gap:11px;flex:none">
+            <span style="width:30px;height:30px;border-radius:50%;background:#e9edf8;color:#4a5064;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">{{ p.initials }}</span>
+            <div style="min-width:0;flex:1">
+              <div style="font-size:13px;font-weight:700;color:#1d2233;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.name }}</div>
+              <div style="font-size:11px;color:#8a90a2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ p.company }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <div style="flex:none;background:#fff;border-top:1px solid #e3e6ef;display:flex;justify-content:space-around;padding:8px 0 calc(8px + env(safe-area-inset-bottom))">
+      <button onClick="{{ goBoard }}" style="{{ mobBoard }}">Board</button>
+      <button onClick="{{ goDash }}" style="{{ mobDash }}">Dashboard</button>
+      <button onClick="{{ goContacts }}" style="{{ mobContacts }}">Contacts</button>
     </div>
   </div>
   </sc-if>
@@ -3662,7 +3822,7 @@ class Component extends DCLogic {
     this.measure = () => {
       // Only real touch hardware gets the phone/tablet layouts; a narrow desktop window keeps the full board.
       const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-      const dev = touch ? (window.innerWidth < 600 ? 'phone' : (window.innerWidth < 1180 ? 'tablet' : 'browser')) : 'browser';
+      const dev = touch ? (Math.min(window.innerWidth, window.innerHeight) < 600 ? 'phone' : 'tablet') : 'browser';
       if (dev !== this.state.device) this.setState({ device: dev });
       const vw = Math.round(Math.max(window.innerWidth - 224 - 46 - 26, 520));
       if (vw !== this.state.vw) {
@@ -3705,7 +3865,7 @@ class Component extends DCLogic {
     window.addEventListener('resize', this.measure);
   }
   // ---- autosave: every edit is persisted the moment state changes (debounced 300ms) ----
-  persistKeys() { return ['rows', 'contacts', 'sets', 'contactCols', 'boardColW', 'stageOrder', 'groupBy', 'view', 'accent', 'density', 'concept', 'sidebarOpen', 'collapsed']; }
+  persistKeys() { return ['mobView', 'rows', 'contacts', 'sets', 'contactCols', 'boardColW', 'stageOrder', 'groupBy', 'view', 'accent', 'density', 'concept', 'sidebarOpen', 'collapsed']; }
   dataKey() { return 'timplex-crm-data-v1'; }
   hydrate() {
     let patch = null;
@@ -3790,7 +3950,7 @@ class Component extends DCLogic {
     let left = 46;
     return defs.map(c => {
       if (!c.sticky) return c;
-      const out = Object.assign({}, c, { stickyLeft: left });
+      const out = Object.assign({}, c, { stickyLeft: left, lastSticky: c.k === 'name' });
       left += c.w;
       return out;
     });
@@ -3799,10 +3959,10 @@ class Component extends DCLogic {
   summaryCells(rws, cols, sets) {
     const money = v => Number(String(v || '0').replace(/[^0-9.]/g, '')) || 0;
     const usd = n => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    const cells = [{ style: 'width:40px;flex:none;position:sticky;left:0;background:#fbfbfd;z-index:2;border-right:1px solid #eef0f6' }];
+    const cells = [{ style: 'width:40px;flex:none;position:sticky;left:6px;background:#fbfbfd;z-index:2;border-right:1px solid #eef0f6' }];
     cols.forEach(c => {
       const base = 'width:' + c.w + 'px;flex:none;border-left:1px solid #eef0f6;padding:6px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden;' +
-        (c.sticky !== undefined ? 'position:sticky;left:' + c.sticky + 'px;background:#fbfbfd;z-index:2;' : '');
+        (c.stickyLeft !== undefined ? 'position:sticky;left:' + c.stickyLeft + 'px;background:#fbfbfd;z-index:2;' : '') + (c.lastSticky ? 'box-shadow:6px 0 8px -6px rgba(20,25,45,.22);' : '');
       const cell = { style: base };
       if (c.k === 'by') {
         cell.isAvatars = true;
@@ -3812,13 +3972,13 @@ class Component extends DCLogic {
           initials: u.initials,
           style: 'width:26px;height:26px;border-radius:50%;background:' + u.color + ';color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fbfbfd;' + (i ? 'margin-left:-8px;' : '')
         }));
-      } else if (c.k === 'lead') {
+      } else if (c.k === 'lead' || c.k === 'stage') {
         cell.isBar = true;
         const counts = {};
-        rws.forEach(r => { if (r.lead) counts[r.lead] = (counts[r.lead] || 0) + 1; });
+        rws.forEach(r => { const v = r[c.k]; if (v) counts[v] = (counts[v] || 0) + 1; });
         const total = Object.keys(counts).reduce((a, k) => a + counts[k], 0);
         cell.segs = Object.keys(counts).sort((a, b) => counts[b] - counts[a]).map(k => {
-          const o = (sets.lead || []).find(x => x.name === k) || { color: '#c4c4c4' };
+          const o = (sets[c.set] || []).find(x => x.name === k) || { color: '#c4c4c4' };
           return { title: k + ' · ' + counts[k], style: 'height:100%;flex:' + counts[k] + ';background:' + o.color };
         });
         if (!total) cell.segs = [];
@@ -4507,10 +4667,10 @@ class Component extends DCLogic {
     if (yf !== 'All' && mf !== 'All') visible = visible.filter(r => String(r.number).slice(2, 4) === mf);
 
     // header cells
-    const headCells = [{ label: '', style: 'width:40px;flex:none;padding:10px 0;position:sticky;left:0;background:#fafbfe;z-index:3' }];
+    const headCells = [{ label: '', style: 'width:40px;flex:none;padding:10px 0;position:sticky;left:6px;background:#fafbfe;z-index:3' }];
     cols.forEach(c => {
       const s = 'width:' + c.w + 'px;flex:none;position:relative;display:flex;align-items:center;justify-content:center;padding:10px 12px;font-size:12px;font-weight:600;color:#6b7185;text-align:center;white-space:nowrap;overflow:hidden;' +
-        'border-left:1px solid #eef0f6;' + (c.stickyLeft !== undefined ? 'position:sticky;left:' + c.stickyLeft + 'px;background:#fafbfe;z-index:3;' : '');
+        'border-left:1px solid #eef0f6;' + (c.stickyLeft !== undefined ? 'position:sticky;left:' + c.stickyLeft + 'px;background:#fafbfe;z-index:3;' : '') + (c.lastSticky ? 'box-shadow:6px 0 8px -6px rgba(20,25,45,.22);' : '');
       headCells.push({
         label: c.label, style: s,
         resizeStart: (e) => this.startDrag(e, { type: 'boardcol', k: c.k, ow: c.w })
@@ -4543,7 +4703,7 @@ class Component extends DCLogic {
           const rowStyle = 'display:flex;align-items:stretch;border-top:1px solid #eef0f6;background:' + (sel ? '#f2f7ff' : '#fff') + ';min-height:' + rowH + 'px;transition:background .15s;animation:rowIn .26s both;animation-delay:' + Math.min(ri * 18, 260) + 'ms';
           const cells = [{
             isCheckbox: true,
-            style: 'width:40px;flex:none;display:flex;align-items:center;justify-content:center;position:sticky;left:0;background:' + (sel ? '#f2f7ff' : '#fff') + ';z-index:2;cursor:pointer',
+            style: 'width:40px;flex:none;display:flex;align-items:center;justify-content:center;position:sticky;left:6px;background:' + (sel ? '#f2f7ff' : '#fff') + ';z-index:2;cursor:pointer',
             boxStyle: 'width:15px;height:15px;border-radius:4px;border:2px solid ' + (sel ? accent : '#cfd4e0') + ';background:' + (sel ? accent : '#fff') + ';color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:900',
             boxMark: sel ? '✓' : '',
             onClick: () => this.setState(s => ({ selected: Object.assign({}, s.selected, { [r.id]: !s.selected[r.id] }) }))
@@ -4553,7 +4713,7 @@ class Component extends DCLogic {
             const centered = c.align === 'center' || c.type === 'label' || c.type === 'labels' || c.type === 'check' || c.type === 'avatar';
             const base = 'width:' + c.w + 'px;flex:none;border-left:1px solid #eef0f6;padding:' + (c.type === 'label' ? '0' : '6px 10px') +
               ';display:flex;align-items:center;gap:5px;cursor:pointer;overflow:hidden;' + (centered ? 'justify-content:center;' : '') +
-              (c.stickyLeft !== undefined ? 'position:sticky;left:' + c.stickyLeft + 'px;background:' + (sel ? '#f2f7ff' : '#fff') + ';z-index:2;' : '');
+              (c.stickyLeft !== undefined ? 'position:sticky;left:' + c.stickyLeft + 'px;background:' + (sel ? '#f2f7ff' : '#fff') + ';z-index:2;' : '') + (c.lastSticky ? 'box-shadow:6px 0 8px -6px rgba(20,25,45,.22);' : '');
             const editing = st.editing && st.editing.id === r.id && st.editing.k === c.k;
             const cell = { style: base, raw: r[c.k] || '' };
 
@@ -5105,7 +5265,8 @@ class Component extends DCLogic {
       };
     }
 
-    const padRows = visible.slice(0, 14).map(r => {
+    const mobBase = st.mobStage ? visible.filter(r => r.stage === st.mobStage) : visible;
+    const mobCard = r => {
       const so = this.find('stage', r.stage) || { color: '#98a9b8' };
       const eo = this.find('estimator', r.estimator) || { color: '#c4c4c4' };
       return {
@@ -5113,7 +5274,42 @@ class Component extends DCLogic {
         stageColor: so.color, stageStyle: this.pill(so.color, 'font-size:10.5px;'), estStyle: this.pill(eo.color, 'font-size:10.5px;'),
         price: r.proposal ? '$' + r.proposal : '—'
       };
+    };
+    const padRows = mobBase.map(mobCard);
+    const mobSeq = this.stageSequence().concat(sets.stage.map(s => s.name)).filter((n, i, a) => a.indexOf(n) === i);
+    const mobKanban = mobSeq.filter(n => mobBase.some(r => r.stage === n)).map(n => {
+      const so = this.find('stage', n) || { color: '#98a9b8' };
+      const cards = mobBase.filter(r => r.stage === n);
+      return { name: n, color: so.color, count: cards.length, cards: cards.map(mobCard) };
     });
+    const chip = (name, value, color, count) => {
+      const on = (st.mobStage || '') === value;
+      return {
+        name, count,
+        pick: () => this.setState({ mobStage: value }),
+        dot: 'width:8px;height:8px;border-radius:50%;flex:none;background:' + (on ? this.ink(color) : color),
+        style: 'display:flex;align-items:center;gap:6px;flex:none;border:1px solid ' + (on ? color : '#e3e6ef') + ';background:' + (on ? color : '#fff') +
+          ';color:' + (on ? this.ink(color) : '#4a5064') + ';padding:7px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap'
+      };
+    };
+    const mobStageChips = [chip('All', '', '#1d2233', visible.length)].concat(
+      mobSeq.filter(n => visible.some(r => r.stage === n)).map(n => chip(n, n, (this.find('stage', n) || { color: '#98a9b8' }).color, visible.filter(r => r.stage === n).length)));
+    const mobWidgets = widgets.map(w => {
+      const hgt = w.isValue ? 150 : w.isGauge ? 290 : w.isPie ? 300 : w.isBar ? Math.max(220, (w.series || []).length * 27 + 90) : 320;
+      const o = Object.assign({}, w, { style: 'position:relative;width:100%;height:' + hgt + 'px;flex:none;background:#fff;border:1px solid #e3e6ef;border-radius:14px;display:flex;flex-direction:column;overflow:hidden' });
+      if (w.gaugeWrap) o.gaugeWrap = 'position:relative;flex:none;width:min(300px,78vw);aspect-ratio:1/0.58';
+      if (w.pieStyle) o.pieStyle = String(w.pieStyle).replace(/width:min\(100%,\d+px\)/, 'width:min(100%,180px)');
+      if (w.numStyle) o.numStyle = String(w.numStyle).replace(/font-size:[\d.]+px/, 'font-size:32px');
+      return o;
+    });
+    const mv = st.mobView || 'list';
+    const mobExtra = {
+      isTouch: st.device !== 'browser', padRows, mobKanban, mobStageChips, mobWidgets,
+      mobIsList: mv === 'list', mobIsKanban: mv === 'kanban', mobEmpty: !mobBase.length,
+      mobSetList: () => this.setState({ mobView: 'list' }), mobSetKanban: () => this.setState({ mobView: 'kanban' }),
+      mobTabList: tab(mv === 'list'), mobTabKanban: tab(mv === 'kanban'),
+      mobCountLabel: mobBase.length + ' of ' + st.rows.length + ' projects' + (st.mobStage ? ' · ' + st.mobStage : '')
+    };
 
     return {
       accentOptions: [['#2b6ef0', 'Timplex blue'], ['#0073ea', 'Monday blue'], ['#7c4dff', 'Violet'], ['#00854d', 'Green'], ['#c4373a', 'Timplex red']].map(([c, n]) => ({
@@ -5130,11 +5326,11 @@ class Component extends DCLogic {
         style: 'background:' + (st.concept === k ? '#fff' : 'transparent') + ';color:' + (st.concept === k ? accent : '#6b7185') +
           ';border:0;padding:7px 11px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:' + (st.concept === k ? '0 1px 3px rgba(20,25,45,.14)' : 'none') + ';transition:all .16s'
       })),
-      mobileContacts: st.contacts.filter(c => !c.archived).slice(0, 60).map(c => ({
+      mobileContacts: st.contacts.filter(c => !c.archived).map(c => ({
         name: c.name, company: c.company || '—',
         initials: String(c.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
       })),
-      mobBoard: mobTab(st.nav === 'board'), mobDash: mobTab(st.nav === 'dash'), mobContacts: mobTab(st.nav === 'contacts'), mobSettings: mobTab(false),
+      mobBoard: mobTab(st.nav === 'board'), mobDash: mobTab(st.nav === 'dash'), mobContacts: mobTab(st.nav === 'contacts'),
       saveLabel: st.saveStatus === 'saving' ? 'Saving…' : st.saveStatus === 'error' ? ('Save failed' + (st.saveError ? ' — ' + st.saveError : '')) :
         (st.savedAt ? (st.cloudOn ? 'Saved to cloud ' : 'Saved locally ') + new Date(st.savedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : (st.cloudOn ? 'Cloud connected' : 'Local mode')),
       saveDotStyle: 'width:7px;height:7px;border-radius:50%;flex:none;transition:background .2s;background:' +
@@ -5153,7 +5349,7 @@ class Component extends DCLogic {
       loginError: !!st.loginError, loginErrorText: st.loginError || '',
       loginFieldStyle: 'width:100%;margin-top:5px;border:1.5px solid ' + (st.loginError ? '#e2445c' : '#b9cfe0') + ';border-radius:6px;padding:8px 9px;font-size:11px;color:#1d2233;outline:0;background:#fff;transition:border-color .16s',
       passFieldStyle: 'width:100%;margin-top:5px;border:1px solid ' + (st.loginError ? '#e2445c' : '#dfe3e8') + ';border-radius:6px;padding:8px 9px;font-size:11px;color:#1d2233;outline:0;background:#fff;transition:border-color .16s',
-      accent, headCells, groups, picker, pickerStyle, settingSets, padRows,
+      accent, headCells, groups, picker, pickerStyle, settingSets, ...mobExtra,
       peoplePicker, peoplePickerOpen: !!pp,
       closePeoplePicker: () => this.setState({ peoplePicker: null }),
       datePicker, datePickerOpen: !!dp,
