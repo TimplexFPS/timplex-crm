@@ -2211,8 +2211,8 @@ input,button,textarea{font-family:inherit}
       </sc-if>
 
       <sc-if value="{{ showTable }}" hint-placeholder-val="{{ true }}">
-      <div data-print-scroll="1" style="flex:1;min-height:0;overflow-x:scroll;overflow-y:auto;padding:14px 0 30px">
-        <div style="min-width:max-content;padding:0 20px">
+      <div data-print-scroll="1" style="flex:1;min-height:0;overflow-x:scroll;overflow-y:auto;padding:0">
+        <div style="min-width:max-content;padding:14px 20px 30px">
 
           <sc-for list="{{ groups }}" as="g" hint-placeholder-count="1">
             <div style="margin-bottom:26px">
@@ -2226,7 +2226,7 @@ input,button,textarea{font-family:inherit}
 
               <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
               <div style="background:#fff;border:1px solid #e3e6ef;border-radius:12px;overflow:clip;box-shadow:0 1px 3px rgba(20,25,45,.05)">
-                <div style="display:flex;background:#fafbfe;border-bottom:1px solid #e3e6ef;position:sticky;top:0;z-index:6;box-shadow:0 2px 4px -2px rgba(20,25,45,.12)">
+                <div style="display:flex;background:#fafbfe;border-bottom:1px solid #e3e6ef;position:sticky;top:0;z-index:6;box-shadow:0 -14px 0 0 #fff,0 3px 6px -3px rgba(20,25,45,.18)">
                   <div style="width:6px;flex:none;background:{{ g.color }};position:sticky;left:0;z-index:4"></div>
                   <sc-for list="{{ headCells }}" as="h" hint-placeholder-count="8">
                     <div style="{{ h.style }}">
@@ -2545,7 +2545,8 @@ input,button,textarea{font-family:inherit}
           </div>
         </div>
 
-        <div data-print-scroll="1" style="flex:1;min-height:0;overflow-x:scroll;overflow-y:auto;padding:4px 22px 30px">
+        <div data-print-scroll="1" style="flex:1;min-height:0;overflow-x:scroll;overflow-y:auto;padding:0">
+          <div style="min-width:max-content;padding:4px 22px 30px">
           <sc-for list="{{ contactGroups }}" as="g" hint-placeholder-count="1">
           <div style="margin-bottom:30px">
             <div style="display:flex;align-items:center;gap:10px;margin:8px 0 8px 2px">
@@ -2555,7 +2556,7 @@ input,button,textarea{font-family:inherit}
             </div>
             <sc-if value="{{ g.open }}" hint-placeholder-val="{{ true }}">
             <div style="min-width:max-content;border-radius:4px 4px 0 0;overflow:visible">
-              <div style="display:flex;background:#fff;border-top:1px solid #d0d4e4;border-bottom:1px solid #d0d4e4;position:sticky;top:0;z-index:6;box-shadow:0 2px 4px -2px rgba(20,25,45,.12)">
+              <div style="display:flex;background:#fff;border-top:1px solid #d0d4e4;border-bottom:1px solid #d0d4e4;position:sticky;top:0;z-index:6;box-shadow:0 -14px 0 0 #fff,0 3px 6px -3px rgba(20,25,45,.18)">
                 <div style="width:6px;flex:none;background:{{ g.color }};border-radius:4px 0 0 0"></div>
                 <div style="width:40px;flex:none;display:flex;align-items:center;justify-content:center;border-right:1px solid #d0d4e4">
                   <span onClick="{{ g.toggleAll }}" style="{{ g.allBox }}">{{ g.allMark }}</span>
@@ -2595,6 +2596,7 @@ input,button,textarea{font-family:inherit}
             </sc-if>
           </div>
           </sc-for>
+          </div>
         </div>
 
         <sc-if value="{{ hasSelection }}">
