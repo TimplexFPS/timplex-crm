@@ -2253,6 +2253,17 @@ input,button,textarea{font-family:inherit}
                             <sc-if value="{{ c.isFileFilled }}"><span onClick="{{ c.removePo }}" title="Remove" style="opacity:.6;flex:none">✕</span></sc-if>
                           </span>
                         </sc-if>
+                        <sc-if value="{{ c.isNotes }}">
+                          <span style="display:inline-flex;align-items:center;gap:5px">
+                            <span style="{{ c.iconBox }}">
+                              <span style="{{ c.dot1 }}"></span>
+                              <span style="{{ c.line1 }}"></span>
+                              <span style="{{ c.dot2 }}"></span>
+                              <span style="{{ c.line2 }}"></span>
+                            </span>
+                            <span style="{{ c.badgeStyle }}">{{ c.noteCount }}</span>
+                          </span>
+                        </sc-if>
                         <sc-if value="{{ c.isName }}">
                           <span style="font-size:13px;font-weight:600;color:#1d2233;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.text }}</span>
                           <span style="margin-left:auto;font-size:11px;color:#b6bbc9;font-weight:700">↗</span>
@@ -2322,6 +2333,7 @@ input,button,textarea{font-family:inherit}
                     <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
                       <span style="font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:#8a90a2">#{{ k.number }}</span>
                       <span style="{{ k.estStyle }}">{{ k.estimator }}</span>
+                      <sc-if value="{{ k.tool }}"><span style="{{ k.toolStyle }}">{{ k.tool }}</span></sc-if>
                     </div>
                     <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px">
                       <span style="font-size:11px;color:#6b7185">{{ k.city }}</span>
@@ -2814,6 +2826,7 @@ input,button,textarea{font-family:inherit}
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                   <span style="{{ r.stageStyle }}">{{ r.stage }}</span>
                   <span style="{{ r.estStyle }}">{{ r.estimator }}</span>
+                  <sc-if value="{{ r.tool }}"><span style="{{ r.toolStyle }}">{{ r.tool }}</span></sc-if>
                   <span style="margin-left:auto;font-size:13px;font-weight:800;color:#1d2233">{{ r.price }}</span>
                 </div>
               </div>
@@ -2842,6 +2855,7 @@ input,button,textarea{font-family:inherit}
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                   <span style="{{ r.stageStyle }}">{{ r.stage }}</span>
                   <span style="{{ r.estStyle }}">{{ r.estimator }}</span>
+                  <sc-if value="{{ r.tool }}"><span style="{{ r.toolStyle }}">{{ r.tool }}</span></sc-if>
                   <span style="margin-left:auto;font-size:13px;font-weight:800;color:#1d2233">{{ r.price }}</span>
                 </div>
               </div>
@@ -3155,6 +3169,42 @@ input,button,textarea{font-family:inherit}
         <div style="display:flex;gap:8px;padding:16px 20px 18px">
           <button onClick="{{ closeContactForm }}" style="flex:1;background:#f0f1f5;color:#323338;border:0;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer" style-hover="background:#e3e6ef">Cancel</button>
           <button onClick="{{ saveContactForm }}" style="flex:1;background:#0073ea;color:#fff;border:0;border-radius:8px;padding:11px;font-size:13px;font-weight:600;cursor:pointer" style-hover="background:#0060b9">{{ contactFormAction }}</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ notesOpen }}">
+    <div onClick="{{ closeNotes }}" style="position:fixed;inset:0;background:rgba(16,19,28,.5);z-index:130;animation:fadeIn .18s"></div>
+    <div style="position:fixed;inset:0;z-index:131;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:none">
+      <div style="width:min(520px,100%);max-height:86vh;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 30px 80px rgba(15,20,40,.35);pointer-events:auto;animation:slideUp .2s both">
+        <div style="display:flex;align-items:flex-start;gap:10px;padding:16px 20px;border-bottom:1px solid #eef0f6;flex:none">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#676879">Comments · <span style="font-family:'IBM Plex Mono',monospace">#{{ notesNumber }}</span></div>
+            <h3 style="margin:3px 0 0;font-size:16px;font-weight:700;color:#323338;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ notesName }}</h3>
+          </div>
+          <button onClick="{{ closeNotes }}" style="background:#f0f1f5;border:0;width:28px;height:28px;border-radius:8px;font-size:13px;color:#323338;cursor:pointer;flex:none" style-hover="background:#e3e6ef">✕</button>
+        </div>
+        <div style="padding:14px 20px;border-bottom:1px solid #eef0f6;flex:none;display:flex;flex-direction:column;gap:9px">
+          <textarea value="{{ noteDraft }}" onChange="{{ setNoteDraft }}" onKeyDown="{{ noteKey }}" rows="3" placeholder="Write a note or comment about this project…" style="border:1px solid #cfd4e0;border-radius:8px;padding:10px 12px;font-size:13.5px;line-height:1.45;color:#323338;outline:0;width:100%;resize:vertical;font-family:inherit" style-focus="border-color:#0073ea"></textarea>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:#9699a6;flex:1">Ctrl/⌘ + Enter to add</span>
+            <button onClick="{{ addNote }}" style="{{ addNoteStyle }}">Add note</button>
+          </div>
+        </div>
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:12px 20px 18px;display:flex;flex-direction:column;gap:10px;background:#fafbfe">
+          <sc-for list="{{ notesList }}" as="n" hint-placeholder-count="2">
+            <div style="background:#fff;border:1px solid #e3e6ef;border-radius:10px;padding:11px 13px;display:flex;flex-direction:column;gap:6px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="width:24px;height:24px;border-radius:50%;background:{{ n.color }};color:#fff;font-size:9.5px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">{{ n.initials }}</span>
+                <span style="font-size:12.5px;font-weight:700;color:#323338">{{ n.by }}</span>
+                <span style="font-size:11px;color:#9699a6;flex:1">{{ n.when }}</span>
+                <button onClick="{{ n.remove }}" style="background:transparent;border:0;color:#b6bbc9;font-size:11.5px;font-weight:600;cursor:pointer;padding:2px 4px" style-hover="color:#e2445c">Delete</button>
+              </div>
+              <div style="font-size:13.5px;line-height:1.5;color:#323338;white-space:pre-wrap;word-break:break-word">{{ n.text }}</div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ notesEmpty }}"><div style="padding:28px 8px;text-align:center;font-size:13px;color:#9699a6">No comments yet for this project.</div></sc-if>
         </div>
       </div>
     </div>
@@ -3542,9 +3592,10 @@ class Component extends DCLogic {
         stage: [S('New Lead - Priority', '#e2445c'), S('New Lead', '#98a9b8'), S('Negotiation/Follow-up', '#c9ae3e'), S('Hold', '#c4c4c4'), S('Won', '#00c875'),
                 S('Brazil - Working on', '#fb8b23'), S('Lost', '#9b2c3a'), S('US - Working on', '#ffcb00'), S('N/A - Steel Scope', '#bb3354'),
                 S('Proposal ready to send', '#037f4c'), S('Mitek Completed', '#0073ea'), S('Proposal Sent', '#66ccff')],
-        estimator: [S('Undefined', '#c4c4c4'), S('Paul - Mitek', '#59a9c0'), S('Elisson - Budget', '#9fc3e9'), S('Paul - Alpine', '#5c5c5c'),
-                S('Nataly - Mitek', '#a9a2c4'), S('Doug - Alpine', '#2b2b2b'), S('Alexandre - Mitek', '#98a9b8'),
-                S('Gustavo - Mitek', '#4a3030'), S('Elisson - Mitek', '#c3ac93')],
+        estimator: [S('Undefined', '#c4c4c4'), S('Paul', '#59a9c0'), S('Elisson', '#9fc3e9'), S('Nataly', '#a9a2c4'), S('Doug', '#2b2b2b'),
+                S('Alexandre', '#98a9b8'), S('Gustavo', '#4a3030')],
+        tool: [S('Mitek', '#0073ea'), S('Alpine', '#5c5c5c'), S('Budget', '#fdab3d')],
+        metric: [S('Full Mitek', '#579bfc'), S('Budget per SF', '#9cd326')],
         scope: [S('Floor', '#d5f2f5'), S('Roof', '#d5f2f5'), S('Walls', '#d5f2f5')],
         title: [S('Project Manager', '#cde7e9'), S('Estimator', '#cde7e9'), S('Estimator Manager', '#cde7e9'), S('Pre-Construction Manager', '#cde7e9'), S('COO', '#cde7e9'), S('Owner', '#cde7e9')],
         type: [S('Customer', '#66ccff'), S('Partner', '#fdab3d'), S('Vendor', '#a25ddc')],
@@ -3560,8 +3611,46 @@ class Component extends DCLogic {
         if (Array.isArray(sd.rows) && sd.rows.length) this.state.rows = this.cleanRows(sd.rows);
         if (Array.isArray(sd.contacts) && sd.contacts.length) this.state.contacts = sd.contacts;
         if (sd.sets && typeof sd.sets === 'object') this.state.sets = Object.assign({}, this.state.sets, sd.sets);
+        const mp = { rows: this.state.rows, sets: this.state.sets };
+        this.migrate(mp);
+        this.state.rows = mp.rows; this.state.sets = mp.sets;
       }
     } catch (e) { console.warn('[seed]', e); }
+  }
+  // v3 data migration: "Estimator - Tool" -> separate Estimator + Tool; adds Metric + Comments. Idempotent.
+  migrate(patch) {
+    let changed = false;
+    const TOOLC = { Mitek: '#0073ea', Alpine: '#5c5c5c', Budget: '#fdab3d' };
+    const split = v => { const s = String(v || ''); const i = s.indexOf(' - '); return i < 0 ? { e: s, t: '' } : { e: s.slice(0, i).trim(), t: s.slice(i + 3).trim() }; };
+    if (patch.sets && (!patch.sets.tool || (patch.sets.estimator || []).some(o => String(o.name).indexOf(' - ') >= 0))) {
+      const old = patch.sets.estimator || [];
+      const est = [], tool = (patch.sets.tool || []).slice();
+      old.forEach(o => {
+        const p = split(o.name);
+        if (p.e && !est.some(x => x.name === p.e)) est.push({ id: 'e-' + p.e.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name: p.e, color: o.color });
+        if (p.t && !tool.some(x => x.name === p.t)) tool.push({ id: 't-' + p.t.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name: p.t, color: TOOLC[p.t] || o.color });
+      });
+      patch.sets = Object.assign({}, patch.sets, { estimator: est, tool });
+      changed = true;
+    }
+    if (patch.sets && !patch.sets.metric) {
+      patch.sets = Object.assign({}, patch.sets, { metric: [{ id: 'm-full-mitek', name: 'Full Mitek', color: '#579bfc' }, { id: 'm-budget-per-sf', name: 'Budget per SF', color: '#9cd326' }] });
+      changed = true;
+    }
+    if (Array.isArray(patch.rows)) {
+      patch.rows = patch.rows.map(r => {
+        if (!r || r.tool !== undefined) return r;
+        const p = split(r.estimator);
+        const toolSet = (patch.sets && patch.sets.tool) || [];
+        const n = Object.assign({}, r, { estimator: p.e || 'Undefined', tool: p.t, metric: r.metric || '', notes: Array.isArray(r.notes) ? r.notes : [] });
+        if (p.t && patch.sets && !toolSet.some(x => x.name === p.t)) patch.sets = Object.assign({}, patch.sets, { tool: toolSet.concat({ id: 't-' + Date.now() + Math.random(), name: p.t, color: '#98a9b8' }) });
+        if (p.e && patch.sets && patch.sets.estimator && !patch.sets.estimator.some(x => x.name === p.e)) patch.sets = Object.assign({}, patch.sets, { estimator: patch.sets.estimator.concat({ id: 'e-' + Date.now() + Math.random(), name: p.e, color: '#98a9b8' }) });
+        changed = true;
+        return n;
+      });
+    }
+    if (patch.groupBy === 'Estimator - Tool') { patch.groupBy = 'Estimator'; changed = true; }
+    return changed;
   }
   // an interrupted upload must never leave a row stuck on "Uploading…" after reload
   cleanRows(rows) { return Array.isArray(rows) ? rows.map(r => r && r.poBusy ? Object.assign({}, r, { poBusy: false }) : r) : rows; }
@@ -3665,7 +3754,9 @@ class Component extends DCLogic {
     const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return {
       stage: { label: 'Status', set: 'stage', key: r => r.stage },
-      estimator: { label: 'Estimator - Tool', set: 'estimator', key: r => r.estimator },
+      estimator: { label: 'Estimator', set: 'estimator', key: r => r.estimator },
+      tool: { label: 'Tool', set: 'tool', key: r => r.tool },
+      metric: { label: 'Metric', set: 'metric', key: r => r.metric },
       lead: { label: 'Lead Source', set: 'lead', key: r => r.lead },
       scope: { label: 'Scope', set: 'scope', keys: r => r.scope || [] },
       by: { label: 'Added by', key: r => { const u = this.people().find(p => p.initials === r.by); return u ? u.name : ''; }, color: n => { const u = this.people().find(p => p.name === n); return u ? u.color : null; } },
@@ -3879,6 +3970,8 @@ class Component extends DCLogic {
         this.persistKeys().forEach(k => { if (saved[k] !== undefined) patch[k] = saved[k]; });
         if (Array.isArray(patch.rows) && !patch.rows.length) delete patch.rows;
         if (patch.rows) patch.rows = this.cleanRows(patch.rows);
+        if (!patch.sets) patch.sets = this.state.sets;
+        this.migrate(patch);
         patch.saveStatus = 'saved';
         patch.savedAt = saved.__at || null;
       }
@@ -3933,11 +4026,14 @@ class Component extends DCLogic {
     const defs = [
       { k: 'number', label: 'Project Number', w: 132, type: 'text', mono: true, align: 'center', sticky: true },
       { k: 'name', label: 'Project Name', w: 290, type: 'name', sticky: true },
+      { k: 'notes', label: 'Comments', w: 92, type: 'notes', align: 'center' },
       { k: 'old', label: 'OLD Project Number', w: 150, type: 'text', mono: true, align: 'center' },
       { k: 'city', label: 'City/State', w: 176, type: 'text', align: 'center' },
       { k: 'stage', label: 'Status', w: 168, type: 'label', set: 'stage' },
-      { k: 'estimator', label: 'Estimator - Tool', w: 158, type: 'label', set: 'estimator' },
+      { k: 'estimator', label: 'Estimator', w: 130, type: 'label', set: 'estimator' },
+      { k: 'tool', label: 'Tool', w: 112, type: 'label', set: 'tool' },
       { k: 'scope', label: 'Scope', w: 148, type: 'labels', set: 'scope' },
+      { k: 'metric', label: 'Metric', w: 140, type: 'label', set: 'metric' },
       { k: 'received', label: 'Date Received', w: 128, type: 'text', align: 'center' },
       { k: 'due', label: 'Due Date', w: 118, type: 'text', align: 'center' },
       { k: 'area', label: 'Area (SF)', w: 104, type: 'text', align: 'center' },
@@ -3974,7 +4070,7 @@ class Component extends DCLogic {
           initials: u.initials,
           style: 'width:26px;height:26px;border-radius:50%;background:' + u.color + ';color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #fbfbfd;' + (i ? 'margin-left:-8px;' : '')
         }));
-      } else if (c.k === 'lead' || c.k === 'stage') {
+      } else if (['lead', 'stage', 'estimator', 'tool', 'metric'].indexOf(c.k) >= 0) {
         cell.isBar = true;
         const counts = {};
         rws.forEach(r => { const v = r[c.k]; if (v) counts[v] = (counts[v] || 0) + 1; });
@@ -3983,7 +4079,7 @@ class Component extends DCLogic {
           const o = (sets[c.set] || []).find(x => x.name === k) || { color: '#c4c4c4' };
           return { title: k + ' · ' + counts[k], style: 'height:100%;flex:' + counts[k] + ';background:' + o.color };
         });
-        if (!total) cell.segs = [];
+        if (!total) { cell.isBar = false; delete cell.segs; }
       } else if (c.k === 'proposal' || c.k === 'deal') {
         cell.isValue = true;
         cell.value = usd(rws.reduce((a, r) => a + money(r[c.k]), 0));
@@ -4035,6 +4131,9 @@ class Component extends DCLogic {
       const v = r[c.k];
       if (c.k === 'stage') return labelCell('stage', r.stage);
       if (c.k === 'estimator') return labelCell('estimator', r.estimator);
+      if (c.k === 'tool') return labelCell('tool', r.tool);
+      if (c.k === 'metric') return labelCell('metric', r.metric);
+      if (c.k === 'notes') return { v: (r.notes || []).map(n => n.text).join(' | ') };
       if (c.k === 'lead') return labelCell('lead', r.lead);
       if (c.k === 'scope') {
         const first = (r.scope || [])[0];
@@ -4323,14 +4422,50 @@ class Component extends DCLogic {
     this.persistKeys().forEach(k => { if (payload[k] !== undefined) patch[k] = payload[k]; });
     if (Array.isArray(patch.rows) && !patch.rows.length) delete patch.rows;
     if (patch.rows) patch.rows = this.cleanRows(patch.rows);
+    if (!patch.sets) patch.sets = this.state.sets;
+    if (patch.rows && patch.rows.some(r => r && r.tool === undefined) && !patch.sets.tool) patch.sets = Object.assign({}, patch.sets);
+    const migrated = this.migrate(patch);
     patch.savedAt = payload.__at || this.state.savedAt || null;
     patch.saveStatus = 'saved';
     this.muteSave = true;
     this.setState(patch, () => {
       this.muteSave = false;
       this.lastSnap = this.persistKeys().map(k => this.state[k]);
+      if (migrated) { this.lastSnap = null; this.scheduleSave(); }
       try { localStorage.setItem(this.dataKey(), JSON.stringify(Object.assign({ __at: patch.savedAt }, payload))); } catch (e) {}
     });
+  }
+
+  notesVals() {
+    const st = this.state;
+    const row = st.notesFor ? st.rows.find(r => r.id === st.notesFor) : null;
+    const me = st.authUser || {};
+    const colors = { EN: '#c4373a', PQ: '#a25ddc', MM: '#0b6b4f', DC: '#0073ea' };
+    const notes = row ? (row.notes || []) : [];
+    const draft = st.noteDraft || '';
+    const add = () => {
+      const t = String(this.state.noteDraft || '').trim();
+      if (!t || !row) return;
+      const n = { id: 'c' + Date.now(), text: t, by: me.name || me.login || '?', initials: me.initials || '?', at: new Date().toISOString() };
+      this.setState(s => ({ noteDraft: '', rows: s.rows.map(r => r.id === row.id ? Object.assign({}, r, { notes: [n].concat(r.notes || []) }) : r) }));
+    };
+    return {
+      notesOpen: !!row,
+      notesNumber: row ? (row.number || row.old || '—') : '',
+      notesName: row ? String(row.name || '').toUpperCase() : '',
+      noteDraft: draft,
+      setNoteDraft: e => this.setState({ noteDraft: e.target.value }),
+      noteKey: e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); add(); } },
+      addNote: add,
+      addNoteStyle: 'border:0;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:700;cursor:' + (draft.trim() ? 'pointer' : 'default') + ';background:' + (draft.trim() ? '#0073ea' : '#e3e6ef') + ';color:' + (draft.trim() ? '#fff' : '#9699a6'),
+      closeNotes: () => this.setState({ notesFor: null, noteDraft: '' }),
+      notesEmpty: !notes.length,
+      notesList: notes.map(n => ({
+        text: n.text, by: n.by, initials: n.initials, color: colors[n.initials] || '#98a9b8',
+        when: (() => { try { return new Date(n.at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } })(),
+        remove: () => { if (!window.confirm('Delete this comment?')) return; this.setState(s => ({ rows: s.rows.map(r => r.id === row.id ? Object.assign({}, r, { notes: (r.notes || []).filter(x => x.id !== n.id) }) : r) })); }
+      }))
+    };
   }
 
   users() {
@@ -4559,6 +4694,8 @@ class Component extends DCLogic {
         if (!window.confirm('Restore ' + n + ' projects and ' + c + ' contacts?\n\nThis REPLACES the current data for all users.')) return;
         const patch = { settings: false };
         ['rows', 'contacts', 'sets', 'contactCols', 'boardColW', 'stageOrder'].forEach(k => { if (data[k] !== undefined) patch[k] = data[k]; });
+        if (!patch.sets) patch.sets = this.state.sets;
+        this.migrate(patch);
         this.setState(patch, () => this.notice('Backup restored', n + ' projects and ' + c + ' contacts loaded and being saved to the cloud.', true));
       };
       rd.readAsText(f);
@@ -4681,18 +4818,19 @@ class Component extends DCLogic {
 
     const byNumber = (a, b) => String(b.number).localeCompare(String(a.number), undefined, { numeric: true });
     visible = visible.slice().sort(byNumber);
-    const groupKey = st.groupBy === 'Status' ? 'stage' : st.groupBy === 'Estimator - Tool' ? 'estimator' : null;
+    const groupKey = st.groupBy === 'Status' ? 'stage' : (st.groupBy === 'Estimator' || st.groupBy === 'Estimator - Tool') ? 'estimator' : st.groupBy === 'Tool' ? 'tool' : st.groupBy === 'Metric' ? 'metric' : null;
     const grouped = !!groupKey;
     const stageOrder = this.stageSequence();
     const orderIdx = (n) => { const i = stageOrder.indexOf(n); return i < 0 ? 999 : i; };
     const groupNames = !grouped ? ['All projects']
       : groupKey === 'stage'
         ? sets.stage.map(s => s.name).filter(n => visible.some(r => r.stage === n)).sort((a, b) => orderIdx(a) - orderIdx(b))
-        : sets.estimator.map(s => s.name).filter(n => visible.some(r => r.estimator === n));
+        : (sets[groupKey] || []).map(s => s.name).filter(n => visible.some(r => r[groupKey] === n))
+            .concat(visible.some(r => !(sets[groupKey] || []).some(s => s.name === r[groupKey])) ? ['—'] : []);
     const gColors = ['#2b6ef0', '#00c875', '#fb8b23', '#a25ddc', '#e2445c', '#579bfc'];
 
     const groups = groupNames.map((gn, gi) => {
-      const rws = grouped ? visible.filter(r => r[groupKey] === gn) : visible;
+      const rws = !grouped ? visible : gn === '—' ? visible.filter(r => !(sets[groupKey] || []).some(s => s.name === r[groupKey])) : visible.filter(r => r[groupKey] === gn);
       const open = !st.collapsed[gn];
       return {
         showHeader: grouped,
@@ -4779,6 +4917,18 @@ class Component extends DCLogic {
               cell.isFileFilled = !!r.po;
               cell.removePo = (e) => { e.stopPropagation(); this.removePdf(r); };
               cell.onClick = () => { if (r.poBusy) return; if (r.po) this.viewPdf(r); else this.pickPdf(r.id); };
+            } else if (c.type === 'notes') {
+              const cnt = (r.notes || []).length;
+              cell.isNotes = true; cell.noteCount = cnt ? String(cnt) : ''; cell.hasNotes = !!cnt;
+              cell.style = base + 'justify-content:center';
+              const ic = cnt ? accent : '#676879';
+              cell.iconBox = 'width:17px;height:15px;border:1.5px solid ' + ic + ';border-radius:3px;display:inline-block;position:relative;flex:none';
+              cell.dot1 = 'position:absolute;left:2.5px;top:3px;width:2px;height:2px;background:' + ic;
+              cell.dot2 = 'position:absolute;left:2.5px;top:7px;width:2px;height:2px;background:' + ic;
+              cell.line1 = 'position:absolute;left:6.5px;top:3px;width:5px;height:1.5px;background:' + ic;
+              cell.line2 = 'position:absolute;left:6.5px;top:7px;width:5px;height:1.5px;background:' + ic;
+              cell.badgeStyle = cnt ? 'font-size:10.5px;font-weight:800;color:#fff;background:' + ic + ';border-radius:9px;padding:1px 6px;line-height:14px' : 'display:none';
+              cell.onClick = () => this.setState({ notesFor: r.id, noteDraft: '' });
             } else if (c.type === 'name') {
               cell.isName = true; cell.text = String(r.name || '').toUpperCase();
               cell.style = base + 'font-weight:600';
@@ -4954,8 +5104,8 @@ class Component extends DCLogic {
     }
 
     // settings
-    const titles = { stage: 'Status', estimator: 'Estimator - Tool', scope: 'Scope', lead: 'Lead Source', title: 'Contacts Title', type: 'Contacts Types' };
-    const order = ['stage', 'estimator', 'scope', 'lead', 'title', 'type'];
+    const titles = { stage: 'Status', estimator: 'Estimator', tool: 'Tool', scope: 'Scope', metric: 'Metric', lead: 'Lead Source', title: 'Contacts Title', type: 'Contacts Types' };
+    const order = ['stage', 'estimator', 'tool', 'scope', 'metric', 'lead', 'title', 'type'];
     const palette = ['#00c875', '#037f4c', '#9cd326', '#cab641', '#ffcb00', '#fdab3d', '#ff642e', '#bb3354',
       '#e2445c', '#ff158a', '#ff5ac4', '#faa1f1', '#a25ddc', '#7e3b8a', '#0073ea', '#579bfc',
       '#66ccff', '#9aadbd', '#68a1bd', '#225091', '#175a63', '#4eccc6', '#c4c4c4', '#808080',
@@ -4983,11 +5133,11 @@ class Component extends DCLogic {
             sets: Object.assign({}, s.sets, { [key]: s.sets[key].map((x, i) => i === idx ? Object.assign({}, x, { name: v }) : x) }),
             rows: s.rows.map(r => {
               const n = Object.assign({}, r);
-              ['stage', 'estimator', 'lead'].forEach(f => { if (n[f] === old) n[f] = v; });
-              n.scope = (n.scope || []).map(x => x === old ? v : x);
+              if (['stage', 'estimator', 'tool', 'metric', 'lead'].indexOf(key) >= 0 && n[key] === old) n[key] = v;
+              if (key === 'scope') n.scope = (n.scope || []).map(x => x === old ? v : x);
               return n;
             }),
-            contacts: s.contacts.map(c => Object.assign({}, c, { title: c.title === old ? v : c.title, type: c.type === old ? v : c.type }))
+            contacts: (key === 'title' || key === 'type') ? s.contacts.map(c => Object.assign({}, c, { [key]: c[key] === old ? v : c[key] })) : s.contacts
           }));
         },
         remove: () => this.setState(s => ({ sets: Object.assign({}, s.sets, { [key]: s.sets[key].filter((x, i) => i !== idx) }) }))
@@ -5273,6 +5423,7 @@ class Component extends DCLogic {
       const eo = this.find('estimator', r.estimator) || { color: '#c4c4c4' };
       return {
         name: r.name, number: r.number, city: r.city || '—', stage: r.stage, estimator: r.estimator,
+        tool: r.tool || '', toolStyle: this.pill((this.find('tool', r.tool) || { color: '#c4c4c4' }).color, 'font-size:10.5px;'),
         stageColor: so.color, stageStyle: this.pill(so.color, 'font-size:10.5px;'), estStyle: this.pill(eo.color, 'font-size:10.5px;'),
         price: r.proposal ? '$' + r.proposal : '—'
       };
@@ -5363,6 +5514,7 @@ class Component extends DCLogic {
         const opts = ['None', 'Company', 'Type', 'Title'];
         return { contactGroupBy: opts[(opts.indexOf(s.contactGroupBy) + 1) % opts.length] };
       }),
+      ...this.notesVals(),
       contactFormOpen: !!st.contactForm,
       contactFormTitle: st.contactForm && st.contactForm.id ? 'Edit contact' : 'New contact',
       contactFormAction: st.contactForm && st.contactForm.id ? 'Save changes' : 'Create contact',
@@ -5501,7 +5653,7 @@ class Component extends DCLogic {
       closeFilters: () => this.setState({ yearOpen: false, monthOpen: false }),
       filtersOpen: st.yearOpen === true || st.monthOpen === true,
       cycleGroupBy: () => this.setState(s => {
-        const opts = ['None', 'Status', 'Estimator - Tool'];
+        const opts = ['None', 'Status', 'Estimator', 'Tool', 'Metric'];
         return { groupBy: opts[(opts.indexOf(s.groupBy) + 1) % opts.length] };
       }),
       numberLocked: !!st.numberLocked,
@@ -5534,7 +5686,7 @@ class Component extends DCLogic {
       pdfRef: this.pdfRefFn || (this.pdfRefFn = (el) => { this.pdfHost = el; if (el) this.renderPdfPages(); }),
       openPdfTab: () => this.openPdfTab(),
       exportBackup: () => this.exportBackup(), importBackup: () => this.importBackup(),
-      addRow: () => this.setState(s => ({ rows: s.rows.concat({ id: 'n' + Date.now(), number: this.nextProjectNumber(), name: 'NEW PROJECT NAME', old: '', city: '', stage: 'New Lead', estimator: 'Undefined', scope: [], received: '', due: '', area: '', by: 'PQ', byColor: '#a25ddc', lead: 'None', contacts: [], group: 'New Leads', proposal: '', signed: false, deal: '', po: '' }) })),
+      addRow: () => this.setState(s => ({ rows: s.rows.concat({ id: 'n' + Date.now(), number: this.nextProjectNumber(), name: 'NEW PROJECT NAME', old: '', city: '', stage: 'New Lead', estimator: 'Undefined', tool: '', metric: '', notes: [], scope: [], received: '', due: '', area: '', by: '', byColor: '', lead: 'None', contacts: [], group: 'New Leads', proposal: '', signed: false, deal: '', po: '' }) })),
       isBrowser: st.device === 'browser', isTablet: st.device === 'tablet', isPhone: st.device === 'phone',
       setBrowser: () => this.setState({ device: 'browser' }), setTablet: () => this.setState({ device: 'tablet' }), setPhone: () => this.setState({ device: 'phone' }),
       dvBrowser: dev(st.device === 'browser'), dvTablet: dev(st.device === 'tablet'), dvPhone: dev(st.device === 'phone'),
@@ -5607,7 +5759,8 @@ class Component extends DCLogic {
           },
           cards: cards.map(r => {
             const eo = self.find('estimator', r.estimator) || { color: '#c4c4c4' };
-            return { name: r.name, number: r.number, city: r.city || '—', estimator: r.estimator, estStyle: self.pill(eo.color, 'font-size:10px;padding:3px 7px;'), price: r.proposal ? '$' + r.proposal : '—' };
+            const to = self.find('tool', r.tool) || { color: '#c4c4c4' };
+            return { name: r.name, number: r.number, city: r.city || '—', estimator: r.estimator, tool: r.tool || '', toolStyle: self.pill(to.color, 'font-size:10px;padding:3px 7px;'), estStyle: self.pill(eo.color, 'font-size:10px;padding:3px 7px;'), price: r.proposal ? '$' + r.proposal : '—' };
           })
         };
         });
