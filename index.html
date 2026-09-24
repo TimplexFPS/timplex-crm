@@ -2130,6 +2130,7 @@ input,button,textarea{font-family:inherit}
     </span>
     <span style="font-size:10px;font-weight:600;color:#fff;white-space:nowrap;flex:none">{{ currentUser }}</span>
     <button onClick="{{ signOut }}" style="background:transparent;border:0;color:rgba(255,255,255,.75);font-size:10px;font-weight:600;cursor:pointer;padding:7px 12px;border-radius:9px;transition:all .16s;white-space:nowrap;flex:none" style-hover="color:#fff;background:rgba(255,255,255,.1)">Sign Out</button>
+    <button onClick="{{ saveNow }}" title="Save everything to the cloud right now" style="{{ saveBtnStyle }}" style-hover="filter:brightness(1.12)"><span style="width:13px;height:13px;border:1.5px solid currentColor;border-radius:2px 3px 2px 2px;position:relative;display:block;flex:none"><span style="position:absolute;left:2px;top:-1.5px;width:6px;height:4px;background:currentColor"></span><span style="position:absolute;left:2px;right:2px;bottom:-1.5px;height:4px;border:1.5px solid currentColor;border-bottom:0;border-radius:1px 1px 0 0"></span></span>{{ saveBtnLabel }}</button>
     <sc-if value="{{ isBrowser }}"><button onClick="{{ openSettings }}" style="display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.1);color:#fff;border:0;padding:7px 13px;border-radius:9px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;flex:none" style-hover="background:rgba(255,255,255,.2)">
       <span style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-radius:50%"></span>Settings · Labels
     </button></sc-if>
@@ -2154,6 +2155,7 @@ input,button,textarea{font-family:inherit}
           <button onClick="{{ goBoard }}" style="{{ navBoard }}"><span style="{{ tileBoard }}">LB</span><span style="{{ navLabel }}">LEADS-BIDS</span></button>
           <button onClick="{{ goDash }}" style="{{ navDash }}"><span style="{{ tileDash }}">SD</span><span style="{{ navLabel }}">SALES DASHBOARD</span></button>
           <button onClick="{{ goContacts }}" style="{{ navContacts }}"><span style="{{ tileContacts }}">CT</span><span style="{{ navLabel }}">CONTACTS</span></button>
+          <button onClick="{{ goCal }}" style="{{ navCal }}"><span style="{{ tileCal }}"><span style="width:14px;height:12px;border:1.5px solid currentColor;border-top-width:3.5px;border-radius:2.5px;display:block;position:relative"><span style="position:absolute;left:2px;top:2.5px;width:2px;height:2px;background:currentColor"></span><span style="position:absolute;left:5.5px;top:2.5px;width:2px;height:2px;background:currentColor"></span></span></span><span style="{{ navLabel }}">CALENDAR</span></button>
         </div>
         <div style="flex:1"></div>
                 <div style="{{ sideFooter }}">
@@ -2379,7 +2381,7 @@ input,button,textarea{font-family:inherit}
             <div style="flex:1"></div>
             <sc-for list="{{ memoSlots }}" as="m" hint-placeholder-count="3">
               <div style="position:relative">
-                <button onClick="{{ m.toggle }}" title="Saved layout {{ m.name }}" style="{{ m.style }}" style-hover="border-color:#0073ea">{{ m.name }}</button>
+                <button onClick="{{ m.toggle }}" title="{{ m.name }}" style="{{ m.style }}" style-hover="border-color:#0073ea">{{ m.name }}</button>
                 <sc-if value="{{ m.open }}">
                   <div style="position:absolute;right:0;top:40px;z-index:75;width:212px;background:#fff;border-radius:11px;box-shadow:0 14px 40px rgba(15,20,40,.24),0 0 0 1px #e3e6ef;padding:8px;animation:popIn .14s both">
                     <div style="font-size:11px;color:#9699a6;padding:4px 8px 8px">{{ m.caption }}</div>
@@ -2392,8 +2394,7 @@ input,button,textarea{font-family:inherit}
                 </sc-if>
               </div>
             </sc-for>
-            <button onClick="{{ autoArrange }}" style="background:#fff;border:1px solid #c3c6d4;color:#323338;padding:7px 12px;border-radius:4px;font-size:13px;white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:7px" style-hover="background:#f5f6f8"><span style="width:12px;height:12px;display:block;background:linear-gradient(#323338,#323338) 0 0/5px 5px no-repeat,linear-gradient(#323338,#323338) 7px 0/5px 12px no-repeat,linear-gradient(#323338,#323338) 0 7px/5px 5px no-repeat"></span>Auto-arrange</button>
-            <button onClick="{{ resetLayout }}" title="Restore the M1 layout (or the default set)" style="background:#fff;border:1px solid #c3c6d4;color:#323338;padding:7px 12px;border-radius:4px;font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:7px" style-hover="background:#f5f6f8;border-color:#0073ea;color:#0073ea"><span style="width:12px;height:12px;border:1.5px solid currentColor;border-right-color:transparent;border-radius:50%;display:block"></span>{{ resetHint }}</button>
+            <button onClick="{{ autoArrange }}" title="Back to Dashboard Layout #1" style="background:#fff;border:1px solid #c3c6d4;color:#323338;padding:7px 12px;border-radius:4px;font-size:13px;white-space:nowrap;cursor:pointer;display:flex;align-items:center;gap:7px" style-hover="background:#f5f6f8"><span style="width:12px;height:12px;display:block;background:linear-gradient(#323338,#323338) 0 0/5px 5px no-repeat,linear-gradient(#323338,#323338) 7px 0/5px 12px no-repeat,linear-gradient(#323338,#323338) 0 7px/5px 5px no-repeat"></span>Auto-arrange</button>
           </div>
           </sc-if>
         </div>
@@ -2629,6 +2630,56 @@ input,button,textarea{font-family:inherit}
             <button onClick="{{ selClear }}" style="background:transparent;border:0;border-left:1px solid #e3e6ef;padding:0 18px;font-size:16px;color:#323338;cursor:pointer" style-hover="background:#f5f6f8">✕</button>
           </div>
         </sc-if>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ showCal }}">
+      <div style="flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:#fbfcfe">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 22px 10px;border-bottom:1px solid #e0e6ed;background:#fbfcfe;flex-wrap:wrap;flex:none">
+          <div style="display:flex;align-items:center;gap:8px">
+            <button onClick="{{ calPrev }}" aria-label="Previous month" style="width:34px;height:34px;border-radius:6px;border:1px solid #e0e6ed;background:#fbfcfe;color:#405472;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;line-height:1;padding:0 0 2px" style-hover="background:#e9eff6;border-color:#bdcad8">‹</button>
+            <span style="font-size:20px;font-weight:600;letter-spacing:-.6px;min-width:170px;text-align:center;color:#172a46">{{ calMonthLabel }}</span>
+            <button onClick="{{ calNext }}" aria-label="Next month" style="width:34px;height:34px;border-radius:6px;border:1px solid #e0e6ed;background:#fbfcfe;color:#405472;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;line-height:1;padding:0 0 2px" style-hover="background:#e9eff6;border-color:#bdcad8">›</button>
+          </div>
+          <button onClick="{{ calToday }}" style="border:1px solid #cfd9e4;background:#fbfcfe;color:#172a46;border-radius:6px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#e9eff6">Today</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <sc-for list="{{ calLegend }}" as="l" hint-placeholder-count="4"><button onClick="{{ l.toggle }}" style="{{ l.style }}"><span style="{{ l.dot }}"></span>{{ l.name }} <span style="opacity:.7;font-weight:600">{{ l.count }}</span></button></sc-for>
+          </div>
+          <span style="font-size:11.5px;color:#8491a1;margin-left:auto">{{ calHint }}</span>
+        </div>
+        <div style="flex:1;overflow:auto;display:flex;flex-direction:column;min-height:0;padding:0 22px calc(20px + env(safe-area-inset-bottom,0px))">
+          <div style="border:1px solid #e0e6ed;border-radius:12px;overflow:hidden;background:#dde4ee;margin-top:12px;display:flex;flex-direction:column;flex:1 0 auto">
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);flex-shrink:0">
+              <sc-for list="{{ calDow }}" as="d" hint-placeholder-count="7"><div style="padding:9px 4px 7px;text-align:center;font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#9aa7b7">{{ d }}</div></sc-for>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+              <sc-for list="{{ calWeeks }}" as="w" hint-placeholder-count="5">
+                <div data-cal-week="1" data-days="{{ w.daysCsv }}" style="{{ w.style }}">
+                  <div style="display:grid;grid-template-columns:repeat(7,1fr);height:100%">
+                    <sc-for list="{{ w.days }}" as="d" hint-placeholder-count="7">
+                      <div onDoubleClick="{{ d.dbl }}" title="{{ d.title }}" style="{{ d.style }}" style-hover="box-shadow:inset 0 0 0 1px #bdcad8">
+                        <sc-if value="{{ d.hol }}"><span style="position:absolute;left:5px;right:5px;top:4px;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7b3b3e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left">{{ d.hol }}</span></sc-if>
+                        <span style="{{ d.numStyle }}">{{ d.num }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="{{ w.barsStyle }}">
+                    <sc-for list="{{ w.bands }}" as="bd" hint-placeholder-count="3"><div title="{{ bd.name }}" style="{{ bd.style }}"></div></sc-for>
+                    <sc-for list="{{ w.bars }}" as="b" hint-placeholder-count="3">
+                      <div onPointerDown="{{ b.down }}" onClick="{{ b.click }}" title="{{ b.title }}" style="{{ b.style }}" style-hover="filter:brightness(1.05);z-index:3">
+                        <sc-for list="{{ b.pills }}" as="p" hint-placeholder-count="2">
+                          <span style="{{ p.style }}"><span style="{{ p.labelStyle }}"><sc-if value="{{ p.lchev }}"><span style="font-size:11px;font-weight:700;opacity:.8;flex:none;line-height:1">‹</span></sc-if><span style="font-size:11px;font-weight:700;overflow:hidden;flex:1 1 0;min-width:0;white-space:nowrap;text-overflow:ellipsis">{{ b.label }}</span><sc-if value="{{ p.rchev }}"><span style="font-size:11px;font-weight:700;opacity:.8;flex:none;line-height:1;margin-left:auto">›</span></sc-if></span></span>
+                        </sc-for>
+                        <sc-if value="{{ b.canResize }}"><span onPointerDown="{{ b.resizeDown }}" style="position:absolute;right:0;top:0;bottom:0;width:8px;cursor:ew-resize;z-index:2"></span></sc-if>
+                      </div>
+                    </sc-for>
+                    <sc-for list="{{ w.more }}" as="m" hint-placeholder-count="1"><div onClick="{{ m.click }}" style="{{ m.style }}" style-hover="background:#fbfcfe;color:#172a46">{{ m.text }}</div></sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
       </div>
       </sc-if>
 
@@ -3034,9 +3085,59 @@ input,button,textarea{font-family:inherit}
         </sc-for>
       </div>
     </sc-if>
+    <sc-if value="{{ showCal }}">
+      <div style="flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;background:#fbfcfe">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 22px 10px;border-bottom:1px solid #e0e6ed;background:#fbfcfe;flex-wrap:wrap;flex:none">
+          <div style="display:flex;align-items:center;gap:8px">
+            <button onClick="{{ calPrev }}" aria-label="Previous month" style="width:34px;height:34px;border-radius:6px;border:1px solid #e0e6ed;background:#fbfcfe;color:#405472;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;line-height:1;padding:0 0 2px" style-hover="background:#e9eff6;border-color:#bdcad8">‹</button>
+            <span style="font-size:20px;font-weight:600;letter-spacing:-.6px;min-width:170px;text-align:center;color:#172a46">{{ calMonthLabel }}</span>
+            <button onClick="{{ calNext }}" aria-label="Next month" style="width:34px;height:34px;border-radius:6px;border:1px solid #e0e6ed;background:#fbfcfe;color:#405472;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;line-height:1;padding:0 0 2px" style-hover="background:#e9eff6;border-color:#bdcad8">›</button>
+          </div>
+          <button onClick="{{ calToday }}" style="border:1px solid #cfd9e4;background:#fbfcfe;color:#172a46;border-radius:6px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#e9eff6">Today</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <sc-for list="{{ calLegend }}" as="l" hint-placeholder-count="4"><button onClick="{{ l.toggle }}" style="{{ l.style }}"><span style="{{ l.dot }}"></span>{{ l.name }} <span style="opacity:.7;font-weight:600">{{ l.count }}</span></button></sc-for>
+          </div>
+          <span style="font-size:11.5px;color:#8491a1;margin-left:auto">{{ calHint }}</span>
+        </div>
+        <div style="flex:1;overflow:auto;display:flex;flex-direction:column;min-height:0;padding:0 22px calc(20px + env(safe-area-inset-bottom,0px))">
+          <div style="border:1px solid #e0e6ed;border-radius:12px;overflow:hidden;background:#dde4ee;margin-top:12px;display:flex;flex-direction:column;flex:1 0 auto">
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);flex-shrink:0">
+              <sc-for list="{{ calDow }}" as="d" hint-placeholder-count="7"><div style="padding:9px 4px 7px;text-align:center;font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#9aa7b7">{{ d }}</div></sc-for>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+              <sc-for list="{{ calWeeks }}" as="w" hint-placeholder-count="5">
+                <div data-cal-week="1" data-days="{{ w.daysCsv }}" style="{{ w.style }}">
+                  <div style="display:grid;grid-template-columns:repeat(7,1fr);height:100%">
+                    <sc-for list="{{ w.days }}" as="d" hint-placeholder-count="7">
+                      <div onDoubleClick="{{ d.dbl }}" title="{{ d.title }}" style="{{ d.style }}" style-hover="box-shadow:inset 0 0 0 1px #bdcad8">
+                        <sc-if value="{{ d.hol }}"><span style="position:absolute;left:5px;right:5px;top:4px;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#7b3b3e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left">{{ d.hol }}</span></sc-if>
+                        <span style="{{ d.numStyle }}">{{ d.num }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="{{ w.barsStyle }}">
+                    <sc-for list="{{ w.bands }}" as="bd" hint-placeholder-count="3"><div title="{{ bd.name }}" style="{{ bd.style }}"></div></sc-for>
+                    <sc-for list="{{ w.bars }}" as="b" hint-placeholder-count="3">
+                      <div onPointerDown="{{ b.down }}" onClick="{{ b.click }}" title="{{ b.title }}" style="{{ b.style }}" style-hover="filter:brightness(1.05);z-index:3">
+                        <sc-for list="{{ b.pills }}" as="p" hint-placeholder-count="2">
+                          <span style="{{ p.style }}"><span style="{{ p.labelStyle }}"><sc-if value="{{ p.lchev }}"><span style="font-size:11px;font-weight:700;opacity:.8;flex:none;line-height:1">‹</span></sc-if><span style="font-size:11px;font-weight:700;overflow:hidden;flex:1 1 0;min-width:0;white-space:nowrap;text-overflow:ellipsis">{{ b.label }}</span><sc-if value="{{ p.rchev }}"><span style="font-size:11px;font-weight:700;opacity:.8;flex:none;line-height:1;margin-left:auto">›</span></sc-if></span></span>
+                        </sc-for>
+                        <sc-if value="{{ b.canResize }}"><span onPointerDown="{{ b.resizeDown }}" style="position:absolute;right:0;top:0;bottom:0;width:8px;cursor:ew-resize;z-index:2"></span></sc-if>
+                      </div>
+                    </sc-for>
+                    <sc-for list="{{ w.more }}" as="m" hint-placeholder-count="1"><div onClick="{{ m.click }}" style="{{ m.style }}" style-hover="background:#fbfcfe;color:#172a46">{{ m.text }}</div></sc-for>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
     <div style="flex:none;background:#fff;border-top:1px solid #e3e6ef;display:flex;justify-content:space-around;padding:8px 0 calc(8px + env(safe-area-inset-bottom))">
       <button onClick="{{ goBoard }}" style="{{ mobBoard }}">Board</button>
       <button onClick="{{ goDash }}" style="{{ mobDash }}">Dashboard</button>
+      <button onClick="{{ goCal }}" style="{{ mobCal }}">Calendar</button>
       <button onClick="{{ goContacts }}" style="{{ mobContacts }}">Contacts</button>
     </div>
   </div>
@@ -3206,6 +3307,111 @@ input,button,textarea{font-family:inherit}
           </sc-for>
           <sc-if value="{{ notesEmpty }}"><div style="padding:28px 8px;text-align:center;font-size:13px;color:#9699a6">No comments yet for this project.</div></sc-if>
         </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ calModalOpen }}">
+    <div onClick="{{ calModalClose }}" style="position:fixed;inset:0;background:rgba(16,19,28,.5);z-index:130;animation:fadeIn .18s"></div>
+    <div style="position:fixed;inset:0;z-index:131;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:none">
+      <div style="width:min(540px,100%);max-height:88vh;display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 30px 80px rgba(15,20,40,.35);pointer-events:auto;animation:slideUp .2s both">
+        <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid #eef0f6;flex:none">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#676879">Designer Calendar</div>
+            <h3 style="margin:3px 0 0;font-size:16px;font-weight:700;color:#323338">{{ calModalTitle }}</h3>
+          </div>
+          <button onClick="{{ calModalClose }}" style="background:#f0f1f5;border:0;width:28px;height:28px;border-radius:8px;font-size:13px;color:#323338;cursor:pointer;flex:none" style-hover="background:#e3e6ef">✕</button>
+        </div>
+        <sc-if value="{{ calEdit }}">
+          <div style="padding:16px 20px 18px;display:flex;flex-direction:column;gap:14px;overflow:auto">
+            <div style="display:flex;align-items:flex-start;gap:12px">
+              <div style="flex:1;min-width:0">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;color:#676879">#{{ cmNumber }}</div>
+                <div style="font-size:15px;font-weight:700;color:#1d2233;line-height:1.3">{{ cmName }}</div>
+                <div style="font-size:12px;color:#8a90a2;margin-top:2px">{{ cmCity }}</div>
+              </div>
+              <span style="{{ cmEstStyle }}">{{ cmEst }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              <span style="font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#676879">Estimator</span>
+              <div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ cmEstOptions }}" as="o" hint-placeholder-count="4"><button onClick="{{ o.pick }}" disabled="{{ calRO }}" style="{{ o.style }}">{{ o.name }}</button></sc-for></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#676879">Designer Start Date</span><input type="date" value="{{ cmStart }}" onChange="{{ cmSetStart }}" disabled="{{ calRO }}" style="border:1px solid #cfd4e0;border-radius:8px;padding:9px 11px;font-size:13px;color:#323338;outline:0;width:100%;min-width:0;font-family:inherit"></label>
+              <label style="display:flex;flex-direction:column;gap:5px"><span style="font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#676879">Designer Due Date</span><input type="date" value="{{ cmEnd }}" onChange="{{ cmSetEnd }}" disabled="{{ calRO }}" style="border:1px solid #cfd4e0;border-radius:8px;padding:9px 11px;font-size:13px;color:#323338;outline:0;width:100%;min-width:0;font-family:inherit"></label>
+            </div>
+            <sc-if value="{{ cmHasOff }}">
+              <div style="display:flex;flex-direction:column;gap:8px;padding:11px 13px;border-radius:10px;background:#f6f7fb;border:1px solid #e3e6ef">
+                <span style="font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#676879">Consider working on the weekend days / holidays below?</span>
+                <div style="display:flex;gap:18px;flex-wrap:wrap">
+                  <sc-for list="{{ cmOff }}" as="f" hint-placeholder-count="2">
+                    <div onClick="{{ f.toggle }}" style="display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;font-size:13px;font-weight:600;color:#1d2233"><span style="{{ f.box }}">{{ f.mark }}</span>{{ f.label }}</div>
+                  </sc-for>
+                </div>
+                <span style="font-size:11.5px;line-height:1.45;color:#8a90a2">Left unchecked, the card skips that day on the calendar. Check a box to show the card on that day as a working day.</span>
+              </div>
+            </sc-if>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <sc-if value="{{ cmCanEdit }}"><button onClick="{{ cmRemove }}" style="background:transparent;border:0;color:#e2445c;font-size:12.5px;font-weight:700;cursor:pointer;padding:6px 4px">Remove from calendar</button></sc-if>
+              <div style="flex:1"></div>
+              <button onClick="{{ cmNotes }}" style="background:#f0f1f5;color:#323338;border:0;border-radius:8px;padding:9px 14px;font-size:12.5px;font-weight:600;cursor:pointer" style-hover="background:#e3e6ef">Comments</button>
+              <button onClick="{{ calModalClose }}" style="background:#0073ea;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-size:12.5px;font-weight:700;cursor:pointer" style-hover="background:#0060b9">Done</button>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ calPick }}">
+          <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column">
+            <sc-if value="{{ cmHasOnDay }}">
+              <div style="padding:14px 20px 4px;display:flex;flex-direction:column;gap:6px">
+                <span style="font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#676879">Scheduled this day</span>
+                <sc-for list="{{ cmOnDay }}" as="t" hint-placeholder-count="2">
+                  <button onClick="{{ t.open }}" style="display:flex;align-items:center;gap:10px;text-align:left;background:#fafbfe;border:1px solid #e3e6ef;border-radius:9px;padding:8px 11px;cursor:pointer;width:100%" style-hover="background:#f0f4fb">
+                    <span style="{{ t.dot }}"></span>
+                    <span style="flex:1;min-width:0;font-size:12.5px;font-weight:700;color:#1d2233;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ t.label }}</span>
+                    <span style="font-size:11px;color:#8a90a2;white-space:nowrap">{{ t.sub }} · {{ t.range }}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </sc-if>
+            <sc-if value="{{ cmCanPick }}">
+            <div style="padding:14px 20px 6px;display:flex;flex-direction:column;gap:8px">
+              <span style="font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#676879">Add a project to this day</span>
+              <div style="display:flex;align-items:center;gap:8px;border:1px solid #cfd4e0;border-radius:8px;padding:8px 11px">
+                <span style="display:inline-block;width:11px;height:11px;border:2px solid #8a90a2;border-radius:50%;flex:none"></span>
+                <input value="{{ cmQuery }}" onChange="{{ cmSetQuery }}" autoFocus="{{ true }}" placeholder="Search number, name or city" style="border:0;outline:0;font-size:13px;flex:1;min-width:0;color:#1d2233;background:transparent">
+              </div>
+              <div style="max-height:240px;overflow:auto;display:flex;flex-direction:column;gap:2px;border:1px solid #eef0f6;border-radius:9px;padding:4px">
+                <sc-for list="{{ cmList }}" as="r" hint-placeholder-count="6">
+                  <button onClick="{{ r.pick }}" style="display:flex;align-items:center;gap:10px;text-align:left;background:transparent;border:0;border-radius:7px;padding:7px 9px;cursor:pointer;width:100%" style-hover="background:#f3f5fb">
+                    <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;color:#676879;width:58px;flex:none">{{ r.number }}</span>
+                    <span style="flex:1;min-width:0"><span style="display:block;font-size:12.5px;font-weight:700;color:#1d2233;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span><span style="display:block;font-size:11px;color:#8a90a2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.city }} {{ r.sched }}</span></span>
+                    <span style="{{ r.estStyle }}">{{ r.est }}</span>
+                  </button>
+                </sc-for>
+                <sc-if value="{{ cmListEmpty }}"><div style="padding:14px;text-align:center;font-size:12.5px;color:#9699a6">No projects match</div></sc-if>
+              </div>
+            </div>
+            <div style="margin:8px 20px 18px;padding:12px 14px;border-radius:10px;background:#f7eeee;border:1px solid #ead4d4;display:flex;flex-direction:column;gap:9px">
+              <sc-if value="{{ cmIsHol }}">
+                <div style="display:flex;align-items:center;gap:10px">
+                  <span style="font-size:12.5px;font-weight:700;color:#7b3b3e;flex:1">Holiday = {{ cmHolName }}</span>
+                  <button onClick="{{ cmRemoveHol }}" style="background:transparent;border:1px solid #d9b6b8;color:#7b3b3e;border-radius:7px;padding:6px 11px;font-size:12px;font-weight:700;cursor:pointer" style-hover="background:#fff">Remove holiday</button>
+                </div>
+              </sc-if>
+              <sc-if value="{{ cmNotHol }}">
+                <div onClick="{{ cmToggleHol }}" style="display:flex;align-items:center;gap:9px;cursor:pointer;user-select:none"><span style="{{ cmHolBox }}">{{ cmHolMark }}</span><span style="font-size:12.5px;font-weight:700;color:#7b3b3e">Mark this day as a holiday</span></div>
+                <sc-if value="{{ cmHolOn }}">
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <span style="font-size:12.5px;font-weight:700;color:#7b3b3e;white-space:nowrap">Holiday =</span>
+                    <input value="{{ cmHolDraft }}" onChange="{{ cmSetHolName }}" onKeyDown="{{ cmHolKey }}" autoFocus="{{ true }}" placeholder="e.g. Thanksgiving Day" style="flex:1;min-width:0;border:1px solid #d9b6b8;border-radius:8px;padding:8px 11px;font-size:13px;color:#323338;outline:0;background:#fff">
+                    <button onClick="{{ cmSaveHol }}" style="{{ cmSaveHolStyle }}">Save</button>
+                  </div>
+                </sc-if>
+              </sc-if>
+            </div>
+            </sc-if>
+          </div>
+        </sc-if>
       </div>
     </div>
   </sc-if>
@@ -3567,6 +3773,7 @@ class Component extends DCLogic {
       concept: 'grid',
       stageFilter: '',
       nav: 'board',
+      holidays: [], memos: {}, calHide: {}, calY: new Date().getFullYear(), calM: new Date().getMonth(), calModal: null, calDrag: null,
       view: 'table',
       search: '',
       groupBy: 'None',
@@ -3743,6 +3950,8 @@ class Component extends DCLogic {
 
   autoArrange() {
     const vw = this.state.vw || 1534;
+    const m1 = (this.state.memos || {}).M1;
+    if (m1) { this.setState({ widgets: this.tile(vw, m1.widgets.map(w => Object.assign({}, w))) }); return; }
     const ordered = this.state.widgets.slice().sort((a, b) => (a.row - b.row) || (a.col - b.col));
     this.setState({ widgets: this.tile(vw, this.pack(ordered)) });
   }
@@ -3912,6 +4121,35 @@ class Component extends DCLogic {
     };
     window.addEventListener('mousemove', this.onMove);
     window.addEventListener('mouseup', this.onUp);
+    this.onCalMove = (e) => {
+      const d = this.calDrag; if (!d) return;
+      if (!d.started) {
+        if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < 4) return;
+        d.started = true; document.body.style.cursor = 'grabbing';
+        this.setState({ calDrag: { rowId: d.rowId, mode: d.mode, delta: 0 } });
+      }
+      e.preventDefault();
+      const iso = this.calDayAtPoint(e.clientX, e.clientY);
+      if (iso) { const delta = this.calDiff(d.grabIso, iso); if (delta !== d.delta) { d.delta = delta; this.setState({ calDrag: { rowId: d.rowId, mode: d.mode, delta } }); } }
+      const row = this.state.rows.find(r => r.id === d.rowId);
+      const b = this.calBadgeEl();
+      if (row) { const g = this.calRange(this.calShift(row, d.mode, d.delta)); if (g) { const n = this.calDiff(g.s, g.e) + 1; b.textContent = this.calFmtRange(g.s, g.e) + ' · ' + n + (n === 1 ? ' day' : ' days'); } }
+      b.style.display = 'block';
+      b.style.left = Math.min(window.innerWidth - b.offsetWidth - 8, e.clientX + 14) + 'px';
+      b.style.top = Math.min(window.innerHeight - 40, e.clientY + 18) + 'px';
+    };
+    this.onCalUp = () => {
+      const d = this.calDrag; if (!d) return;
+      this.calDrag = null; document.body.style.cursor = '';
+      if (this.calBadge) this.calBadge.style.display = 'none';
+      if (!d.started) return;
+      this.calJustDragged = true; setTimeout(() => { this.calJustDragged = false; }, 0);
+      const delta = d.delta;
+      this.setState(s => ({ calDrag: null, rows: delta ? s.rows.map(r => r.id === d.rowId ? this.calShift(r, d.mode, delta) : r) : s.rows }));
+    };
+    window.addEventListener('pointermove', this.onCalMove);
+    window.addEventListener('pointerup', this.onCalUp);
+    window.addEventListener('pointercancel', this.onCalUp);
     this.measure = () => {
       // Only real touch hardware gets the phone/tablet layouts; a narrow desktop window keeps the full board.
       const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
@@ -3939,26 +4177,15 @@ class Component extends DCLogic {
       if (Array.isArray(so) && so.length) this.setState({ stageOrder: so });
     } catch (e) {}
     // flush pending edits if the tab is closed mid-debounce
-    this.flushSave = () => {
-      if (!this.saveTimer) return;
-      clearTimeout(this.saveTimer); this.saveTimer = null;
-      try {
-        const out = { __at: new Date().toISOString() };
-        this.persistKeys().forEach(k => { out[k] = this.state[k]; });
-        localStorage.setItem(this.dataKey(), JSON.stringify(out));
-      } catch (e) {}
-    };
+    this.flushSave = () => { if (this.saveTimer) this.writeNow(false); };
     window.addEventListener('beforeunload', this.flushSave);
     window.addEventListener('pagehide', this.flushSave);
-    const memos = this.loadMemos();
-    if (memos && Object.keys(memos).length) {
-      this.setState(s => ({ memos, widgets: memos.M1 ? this.tile(s.vw || 1534, memos.M1.widgets.map(w => Object.assign({}, w))) : s.widgets }));
-    }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.flushSave(); });
     setTimeout(this.measure, 60);
     window.addEventListener('resize', this.measure);
   }
   // ---- autosave: every edit is persisted the moment state changes (debounced 300ms) ----
-  persistKeys() { return ['mobView', 'rows', 'contacts', 'sets', 'contactCols', 'boardColW', 'stageOrder', 'groupBy', 'view', 'accent', 'density', 'concept', 'sidebarOpen', 'collapsed']; }
+  persistKeys() { return ['mobView', 'holidays', 'memos', 'rows', 'contacts', 'sets', 'contactCols', 'boardColW', 'stageOrder', 'groupBy', 'view', 'accent', 'density', 'concept', 'sidebarOpen', 'collapsed']; }
   dataKey() { return 'timplex-crm-data-v1'; }
   hydrate() {
     let patch = null;
@@ -3978,6 +4205,7 @@ class Component extends DCLogic {
     } catch (e) { console.warn('[autosave] hydrate failed', e); }
     const finish = () => {
       // baseline snapshot so the hydrate itself isn't treated as an edit
+      if (!this.state.memos || !Object.keys(this.state.memos).length) { const lm = this.loadMemos(); if (lm && Object.keys(lm).length) this.state.memos = lm; }
       this.lastSnap = this.persistKeys().map(k => this.state[k]);
       this.hydrated = true;
       // first run with no store yet: persist the seed so the file exists
@@ -3991,22 +4219,33 @@ class Component extends DCLogic {
     this.lastSnap = snap;
     if (this.state.saveStatus !== 'saving') this.setState({ saveStatus: 'saving' });
     clearTimeout(this.saveTimer);
-    this.saveTimer = setTimeout(() => {
-      const out = { __at: new Date().toISOString() };
-      this.persistKeys().forEach(k => { out[k] = this.state[k]; });
-      try { localStorage.setItem(this.dataKey(), JSON.stringify(out)); } catch (e) { console.warn('[autosave] local', e); }
-      const cloud = this.cloud();
-      if (cloud && this.state.authUser) {
-        cloud.saveDoc(out)
-          .then(() => this.setState({ saveStatus: 'saved', savedAt: out.__at, saveError: '' }))
-          .catch(e => { console.error('[autosave] cloud failed', e); this.setState({ saveStatus: 'error', saveError: (e && e.message) || 'cloud error' }); });
-      } else {
-        this.setState({ saveStatus: 'saved', savedAt: out.__at });
-      }
-    }, 400);
+    this.saveTimer = setTimeout(() => this.writeNow(false), 400);
+  }
+  // one real write: localStorage first (instant), then Firestore
+  writeNow(manual) {
+    clearTimeout(this.saveTimer); this.saveTimer = null;
+    this.lastSnap = this.persistKeys().map(k => this.state[k]);
+    const out = { __at: new Date().toISOString() };
+    this.persistKeys().forEach(k => { out[k] = this.state[k]; });
+    try { localStorage.setItem(this.dataKey(), JSON.stringify(out)); } catch (e) { console.warn('[autosave] local', e); }
+    const cloud = this.cloud();
+    const flash = () => { if (!manual) return; this.setState({ saveFlash: true }); clearTimeout(this.flashTimer); this.flashTimer = setTimeout(() => this.setState({ saveFlash: false }), 2200); };
+    if (cloud && this.state.authUser) {
+      if (this.state.saveStatus !== 'saving') this.setState({ saveStatus: 'saving' });
+      return cloud.saveDoc(out)
+        .then(() => { this.setState({ saveStatus: 'saved', savedAt: out.__at, saveError: '' }); flash(); })
+        .catch(e => { console.error('[autosave] cloud failed', e); this.setState({ saveStatus: 'error', saveError: (e && e.message) || 'cloud error' }); });
+    }
+    this.setState({ saveStatus: 'saved', savedAt: out.__at }); flash();
+    return Promise.resolve();
   }
   componentDidUpdate() {
     if (this.measure) this.measure();
+    if (!this.layoutApplied && this.state.memos && this.state.memos.M1 && this.state.vw) {
+      this.layoutApplied = true;
+      const m1 = this.state.memos.M1;
+      this.setState(s => ({ widgets: this.tile(s.vw || 1534, m1.widgets.map(w => Object.assign({}, w))) }));
+    }
     if (this.hydrated && !this.muteSave) this.scheduleSave();
   }
   componentWillUnmount() {
@@ -4034,8 +4273,9 @@ class Component extends DCLogic {
       { k: 'tool', label: 'Tool', w: 112, type: 'label', set: 'tool' },
       { k: 'scope', label: 'Scope', w: 148, type: 'labels', set: 'scope' },
       { k: 'metric', label: 'Metric', w: 140, type: 'label', set: 'metric' },
-      { k: 'received', label: 'Date Received', w: 128, type: 'text', align: 'center' },
-      { k: 'due', label: 'Due Date', w: 118, type: 'text', align: 'center' },
+      { k: 'received', label: 'Lead Received Date', w: 134, type: 'text', align: 'center' },
+      { k: 'dStart', label: 'Designer Start Date', w: 138, type: 'text', align: 'center' },
+      { k: 'due', label: 'Designer Due Date', w: 134, type: 'text', align: 'center' },
       { k: 'area', label: 'Area (SF)', w: 104, type: 'text', align: 'center' },
       { k: 'by', label: 'Added by', w: 96, type: 'avatar' },
       { k: 'lead', label: 'Lead Source', w: 152, type: 'label', set: 'lead' },
@@ -4402,8 +4642,10 @@ class Component extends DCLogic {
     this.connecting = true;
     try {
       const remote = await cloud.loadDoc();
-      if (remote && remote.payload) this.applyRemote(remote.payload, true);
-      else { this.lastSnap = null; this.scheduleSave(); } // first login ever: seed the cloud
+      const localAt = this.state.savedAt;
+      const localNewer = remote && remote.payload && localAt && remote.__at && remote.__at < localAt;
+      if (remote && remote.payload && !localNewer) this.applyRemote(remote.payload, true);
+      else { this.lastSnap = null; this.writeNow(false); } // first login ever, or this device holds newer edits: push them up
       if (this.unsubRemote) this.unsubRemote();
       this.unsubRemote = cloud.onRemote((d) => {
         if (!d || !d.payload) return;
@@ -4425,6 +4667,7 @@ class Component extends DCLogic {
     if (!patch.sets) patch.sets = this.state.sets;
     if (patch.rows && patch.rows.some(r => r && r.tool === undefined) && !patch.sets.tool) patch.sets = Object.assign({}, patch.sets);
     const migrated = this.migrate(patch);
+    if (patch.memos && patch.memos.M1) this.layoutApplied = false;
     patch.savedAt = payload.__at || this.state.savedAt || null;
     patch.saveStatus = 'saved';
     this.muteSave = true;
@@ -4434,6 +4677,232 @@ class Component extends DCLogic {
       if (migrated) { this.lastSnap = null; this.scheduleSave(); }
       try { localStorage.setItem(this.dataKey(), JSON.stringify(Object.assign({ __at: patch.savedAt }, payload))); } catch (e) {}
     });
+  }
+
+  // ---- Designer calendar (layout and behaviour ported from Timplex TimeSheet) ----
+  calIso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  calParse(s) { const p = String(s).split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  calAdd(iso, n) { const d = this.calParse(iso); d.setDate(d.getDate() + n); return this.calIso(d); }
+  calDiff(a, b) { return Math.round((this.calParse(b) - this.calParse(a)) / 86400000); }
+  rowIso(v) { const d = this.parseDate(v); return d ? this.calIso(d) : ''; }
+  isoField(iso) { return iso ? this.fmtDate(this.calParse(iso)) : ''; }
+  // a weekend or holiday paints no card unless the project is flagged to work that day
+  calCovers(r, iso, hol) { const dow = this.calParse(iso).getDay(); if (dow === 6 && !r.workSat) return false; if (dow === 0 && !r.workSun) return false; if (hol[iso] && !r.workHol) return false; return true; }
+  calRange(r) { const s = this.rowIso(r.dStart); if (!s) return null; let e = this.rowIso(r.due) || s; if (e < s) e = s; return { s, e }; }
+  calShift(r, mode, delta) {
+    const g = this.calRange(r); if (!g) return r;
+    let ns = g.s, ne = g.e;
+    if (mode === 'move') { ns = this.calAdd(g.s, delta); ne = this.calAdd(g.e, delta); }
+    else { ne = this.calAdd(g.e, delta); if (ne < ns) ne = ns; }
+    return Object.assign({}, r, { dStart: this.isoField(ns), due: this.isoField(ne) });
+  }
+  calFmtRange(s, e) {
+    const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const a = this.calParse(s), b = this.calParse(e);
+    if (s === e) return M[a.getMonth()] + ' ' + a.getDate();
+    if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) return M[a.getMonth()] + ' ' + a.getDate() + ' – ' + b.getDate();
+    return M[a.getMonth()] + ' ' + a.getDate() + ' – ' + M[b.getMonth()] + ' ' + b.getDate();
+  }
+  calDayAtPoint(x, y) {
+    const rows = Array.from(document.querySelectorAll('[data-cal-week]'));
+    if (!rows.length) return null;
+    const col = (r, el) => { const d = (el.getAttribute('data-days') || '').split(','); return d[Math.max(0, Math.min(6, Math.floor((x - r.left) / (r.width / 7))))]; };
+    for (const el of rows) { const r = el.getBoundingClientRect(); if (y >= r.top && y <= r.bottom) return col(r, el); }
+    const f = rows[0].getBoundingClientRect(); if (y < f.top) return col(f, rows[0]);
+    const l = rows[rows.length - 1]; return col(l.getBoundingClientRect(), l);
+  }
+  calBadgeEl() {
+    if (!this.calBadge) {
+      const b = document.createElement('div');
+      b.style.cssText = "position:fixed;z-index:400;pointer-events:none;display:none;background:#172a46;color:#fbfcfe;border-radius:8px;padding:5px 10px;box-shadow:0 8px 20px -6px rgba(0,0,0,.45);font-family:'IBM Plex Mono',monospace;font-size:11.5px;font-weight:600;white-space:nowrap";
+      document.body.appendChild(b); this.calBadge = b;
+    }
+    return this.calBadge;
+  }
+  calVals() {
+    const st = this.state, sets = st.sets;
+    const ro = st.device !== 'browser';
+    const y = st.calY, m = st.calM;
+    const MN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const todayIso = this.calIso(new Date());
+    const hol = {}; (st.holidays || []).forEach(h => { hol[h.d] = h.name; });
+    const drag = st.calDrag;
+    const estNames = (sets.estimator || []).map(s => s.name).filter(n => n !== 'Undefined');
+    const colorOf = n => (this.find('estimator', n) || { color: '#98a9b8' }).color;
+    const sched = [];
+    st.rows.forEach(r0 => {
+      const r = drag && drag.rowId === r0.id && drag.delta ? this.calShift(r0, drag.mode, drag.delta) : r0;
+      const g = this.calRange(r); if (!g) return;
+      const known = estNames.includes(r.estimator);
+      sched.push({ r: r0, s: g.s, e: g.e, lane: known ? r.estimator : '—', color: known ? colorOf(r.estimator) : '#9aa7b7', label: '#' + r.number + ' – ' + r.name, dragging: !!(drag && drag.rowId === r0.id) });
+    });
+    const laneNames = estNames.concat(sched.some(t => t.lane === '—') ? ['—'] : []);
+    const lanes = laneNames.filter(n => !st.calHide[n]).map(n => ({ name: n === '—' ? 'Not assigned' : n, key: n, color: n === '—' ? '#9aa7b7' : colorOf(n) }));
+    const dropSet = {};
+    if (drag) { const t = sched.find(x => x.r.id === drag.rowId); if (t) { for (let d = t.s; d <= t.e; d = this.calAdd(d, 1)) if (this.calCovers(t.r, d, hol)) dropSet[d] = true; } }
+    const first = new Date(y, m, 1); const lead = (first.getDay() + 6) % 7; const dim = new Date(y, m + 1, 0).getDate(); const nWeeks = Math.ceil((lead + dim) / 7);
+    const SUB_MAX = ro && window.innerWidth <= 480 ? 2 : 3;
+    const models = [];
+    for (let w = 0; w < nWeeks; w++) {
+      const days = [];
+      for (let i = 0; i < 7; i++) { const d = new Date(y, m, 1 - lead + w * 7 + i); days.push({ iso: this.calIso(d), num: d.getDate(), inMonth: d.getMonth() === m, dow: d.getDay() }); }
+      const ws = days[0].iso, we = days[6].iso;
+      const entries = sched.filter(t => t.e >= ws && t.s <= we).map(t => ({ t, sIdx: Math.max(0, this.calDiff(ws, t.s)), eIdx: Math.min(6, this.calDiff(ws, t.e)), sub: 0 }));
+      const bands = lanes.map(l => {
+        const mine = entries.filter(e => e.t.lane === l.key).sort((a, b) => a.sIdx !== b.sIdx ? a.sIdx - b.sIdx : (b.eIdx - b.sIdx) - (a.eIdx - a.sIdx));
+        const subEnds = [];
+        mine.forEach(e => { let sub = -1; for (let i = 0; i < subEnds.length; i++) { if (subEnds[i] < e.sIdx) { sub = i; break; } } if (sub === -1) { sub = subEnds.length; subEnds.push(e.eIdx); } else subEnds[sub] = e.eIdx; e.sub = sub; });
+        const hiddenByDay = [0, 0, 0, 0, 0, 0, 0]; let anyHidden = false;
+        mine.forEach(e => { if (e.sub >= SUB_MAX) { anyHidden = true; for (let d = e.sIdx; d <= e.eIdx; d++) hiddenByDay[d]++; } });
+        const units = Math.max(1, Math.min(SUB_MAX, subEnds.length)) + (anyHidden ? 0.75 : 0);
+        return { lane: l, tasks: mine, units, hiddenByDay, anyHidden };
+      });
+      models.push({ days, ws, we, bands, units: bands.reduce((a, b) => a + b.units, 0) });
+    }
+    const DATES_H = 22;
+    let LANE_H = ro && window.innerWidth <= 480 ? 19 : 22;
+    const totalUnits = models.reduce((a, mm) => a + mm.units, 0);
+    const avail = (window.innerHeight || 800) - 44 - 58;
+    if (!ro && totalUnits > 0 && window.innerWidth > 760) { const budget = avail - 64 - models.length * (DATES_H + 6); LANE_H = Math.max(16, Math.min(LANE_H, Math.floor(budget / totalUnits))); }
+    const openPick = iso => this.setState({ calModal: { iso, rowId: null, query: '', holOn: false, holName: '' } });
+    const calWeeks = models.map(mm => {
+      const barsH = mm.units * LANE_H + 4;
+      const dayCells = mm.days.map(d => {
+        const hn = hol[d.iso]; const wk = d.dow === 0 || d.dow === 6; const drop = !!dropSet[d.iso];
+        let bg = d.inMonth ? (wk ? '#eef2f8' : '#ffffff') : (wk ? '#e3e9f1' : '#e9eef5');
+        if (hn) bg = '#ead4d4'; if (drop) bg = '#e8f4f8';
+        const isToday = d.iso === todayIso;
+        let sh = isToday ? 'box-shadow:inset 0 0 0 1px #5b9cbd;' : '';
+        if (drop) sh = 'outline:2px dashed #4c91b5;outline-offset:-2px;box-shadow:inset 0 0 0 1px #b5d9e5;';
+        const numColor = hn ? '#7b3b3e' : (!d.inMonth || wk) ? '#9aa7b7' : '#213c5c';
+        return {
+          num: String(d.num), hol: hn || '', title: ro ? '' : 'Double-click to schedule a project or mark a holiday on ' + d.iso,
+          style: 'position:relative;padding:3px 5px;min-height:0;cursor:' + (ro ? 'default' : 'pointer') + ';background:' + bg + ';border:3px solid #dde4ee;border-radius:6px;background-clip:padding-box;transition:background-color .16s;' + sh,
+          numStyle: isToday ? 'width:19px;height:19px;margin-left:auto;border-radius:100px;background:#26769c;color:#fff;font-size:10.5px;font-weight:700;display:grid;place-items:center' : 'font-size:11.5px;font-weight:' + (hn ? 700 : 600) + ';color:' + numColor + ';display:block;text-align:right',
+          dbl: () => { if (!ro) openPick(d.iso); }
+        };
+      });
+      const bands = [], bars = [], more = []; let offset = 0;
+      mm.bands.forEach((band, bi) => {
+        const bandTop = offset * LANE_H, bandH = band.units * LANE_H;
+        bands.push({ name: band.lane.name, style: 'position:absolute;left:0;right:0;pointer-events:none;top:' + bandTop + 'px;height:' + bandH + 'px;background:' + (bi % 2 ? 'rgba(23,42,70,.028)' : 'transparent') });
+        band.tasks.forEach(en => {
+          if (en.sub >= SUB_MAX) return;
+          const t = en.t; const r = t.r; const ink = this.ink(t.color);
+          const runs = []; let run = null;
+          for (let di = en.sIdx; di <= en.eIdx; di++) {
+            if (!this.calCovers(r, mm.days[di].iso, hol)) { run = null; continue; }
+            if (run && run.to === di - 1) run.to = di; else { run = { from: di, to: di }; runs.push(run); }
+          }
+          const grab = (mode) => e => { if (ro || e.button !== 0) return; const iso = this.calDayAtPoint(e.clientX, e.clientY); if (!iso) return; this.calDrag = { rowId: r.id, mode, grabIso: iso, sx: e.clientX, sy: e.clientY, started: false, delta: 0 }; };
+          runs.forEach(seg => {
+          const startsHere = seg.from === en.sIdx && t.s >= mm.ws, endsHere = seg.to === en.eIdx && t.e <= mm.we;
+          const n = seg.to - seg.from + 1;
+          const pills = [];
+          for (let i = 0; i < n; i++) pills.push({
+            style: 'position:absolute;top:0;bottom:0;left:' + (i / n * 100) + '%;width:' + (i === n - 1 ? (100 / n) + '%' : 'calc(' + (100 / n) + '% - 3px)') + ';border-radius:4px;background:' + t.color + ';box-shadow:0 1px 1px rgba(28,51,78,.08);border:1px solid rgba(0,0,0,.07);pointer-events:none;overflow:hidden;display:flex;align-items:center;line-height:1.35',
+            labelStyle: 'display:flex;align-items:center;gap:5px;width:100%;padding:2px 7px;overflow:hidden;color:' + ink,
+            lchev: i === 0 && !startsHere, rchev: i === n - 1 && !endsHere
+          });
+          bars.push({
+            label: t.label, pills, canResize: endsHere && !ro, title: t.label + ' · ' + (t.lane === '—' ? 'Not assigned' : t.lane) + ' · ' + this.calFmtRange(t.s, t.e),
+            style: 'position:absolute;left:' + (seg.from / 7 * 100) + '%;width:' + (n / 7 * 100) + '%;top:' + (bandTop + en.sub * LANE_H) + 'px;height:' + (LANE_H - 3) + 'px;cursor:' + (ro ? 'pointer' : 'grab') + ';user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;z-index:' + (t.dragging ? 5 : 2) + (t.dragging ? ';opacity:.92;filter:drop-shadow(0 6px 10px rgba(0,0,0,.28))' : ''),
+            down: grab('move'),
+            resizeDown: e => { e.stopPropagation(); grab('resize')(e); },
+            click: () => { if (this.calJustDragged) return; this.setState({ calModal: { iso: t.s, rowId: r.id } }); }
+          });
+          });
+        });
+        if (band.anyHidden) {
+          let d0 = 0;
+          while (d0 < 7) {
+            if (band.hiddenByDay[d0] > 0) {
+              let d1 = d0; while (d1 + 1 < 7 && band.hiddenByDay[d1 + 1] === band.hiddenByDay[d0]) d1++;
+              const iso = mm.days[d0].iso;
+              more.push({ text: '+' + band.hiddenByDay[d0] + ' more', click: () => openPick(iso), style: 'position:absolute;left:' + (d0 / 7 * 100) + '%;width:' + ((d1 - d0 + 1) / 7 * 100) + '%;top:' + (bandTop + SUB_MAX * LANE_H) + 'px;font-size:10px;font-weight:700;color:#526a82;background:#e9eff6;border-radius:5px;padding:1px 6px;cursor:pointer;border:1px solid #e0e6ed;z-index:2;line-height:1.3' });
+              d0 = d1 + 1;
+            } else d0++;
+          }
+        }
+        offset += band.units;
+      });
+      return { daysCsv: mm.days.map(d => d.iso).join(','), style: 'position:relative;flex:1;min-height:' + (barsH + DATES_H) + 'px', days: dayCells, barsStyle: 'position:absolute;left:0;right:0;top:24px;height:' + barsH + 'px', bands, bars, more };
+    });
+    const legend = laneNames.map(n => {
+      const on = !st.calHide[n]; const c = n === '—' ? '#9aa7b7' : colorOf(n); const cnt = sched.filter(t => t.lane === n).length;
+      return {
+        name: n === '—' ? 'Not assigned' : n, count: String(cnt),
+        toggle: () => this.setState(s => ({ calHide: Object.assign({}, s.calHide, { [n]: !s.calHide[n] }) })),
+        dot: 'width:8px;height:8px;border-radius:50%;flex:none;background:' + (on ? this.ink(c) : c) + (on ? ';opacity:.85' : ''),
+        style: 'display:inline-flex;align-items:center;gap:6px;border:1px solid ' + (on ? c : '#e0e6ed') + ';background:' + (on ? c : '#fbfcfe') + ';color:' + (on ? this.ink(c) : '#8491a1') + ';padding:5px 10px;border-radius:999px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap' + (on ? '' : ';text-decoration:line-through')
+      };
+    });
+    return Object.assign({
+      calMonthLabel: MN[m] + ' ' + y, calDow: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], calWeeks, calLegend: legend, calRO: ro,
+      calHint: ro ? 'Read-only here · schedule and move projects on the computer' : 'Bar color = estimator · drag to move, drag the right edge to resize · double-click a day to schedule or mark a holiday',
+      calPrev: () => this.setState(s => ({ calM: s.calM === 0 ? 11 : s.calM - 1, calY: s.calM === 0 ? s.calY - 1 : s.calY })),
+      calNext: () => this.setState(s => ({ calM: s.calM === 11 ? 0 : s.calM + 1, calY: s.calM === 11 ? s.calY + 1 : s.calY })),
+      calToday: () => this.setState({ calY: new Date().getFullYear(), calM: new Date().getMonth() })
+    }, this.calModalVals(sched, hol, ro));
+  }
+  calModalVals(sched, hol, ro) {
+    const st = this.state, cm = st.calModal;
+    if (!cm) return { calModalOpen: false };
+    const iso = cm.iso; const d = this.calParse(iso);
+    const close = () => this.setState({ calModal: null });
+    const row = cm.rowId ? st.rows.find(r => r.id === cm.rowId) : null;
+    const estColor = n => (this.find('estimator', n) || { color: '#98a9b8' }).color;
+    const out = { calModalOpen: true, calModalClose: close, calModalTitle: d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }), calEdit: !!row, calPick: !row, cmCanEdit: !ro, cmCanPick: !ro };
+    if (row) {
+      const g = this.calRange(row) || { s: iso, e: iso };
+      out.cmNumber = row.number; out.cmName = String(row.name || '').toUpperCase(); out.cmCity = row.city || '—';
+      out.cmEst = row.estimator || 'Undefined'; out.cmEstStyle = this.pill(estColor(row.estimator), '');
+      out.cmStart = g.s; out.cmEnd = g.e;
+      out.cmSetStart = e => { const v = e.target.value; if (!v) return; this.setState(s => ({ rows: s.rows.map(r => { if (r.id !== row.id) return r; const cur = this.rowIso(r.due) || v; return Object.assign({}, r, { dStart: this.isoField(v), due: this.isoField(cur < v ? v : cur) }); }) })); };
+      out.cmSetEnd = e => { const v = e.target.value; if (!v) return; this.setState(s => ({ rows: s.rows.map(r => r.id === row.id ? Object.assign({}, r, { due: this.isoField(v < g.s ? g.s : v) }) : r) })); };
+      out.cmRemove = () => { if (!window.confirm('Remove this project from the calendar?\n\nDesigner Start Date and Designer Due Date will be cleared.')) return; this.setState(s => ({ rows: s.rows.map(r => r.id === row.id ? Object.assign({}, r, { dStart: '', due: '' }) : r), calModal: null })); };
+      out.cmNotes = () => this.setState({ calModal: null, notesFor: row.id, noteDraft: '' });
+      let hasSat = false, hasSun = false, hasHol = false;
+      for (let d = g.s; d <= g.e; d = this.calAdd(d, 1)) { const dow = this.calParse(d).getDay(); if (dow === 6) hasSat = true; if (dow === 0) hasSun = true; if (hol[d]) hasHol = true; }
+      const flag = (k, label, show) => ({ label, show, on: !!row[k],
+        box: 'width:16px;height:16px;border-radius:4px;border:1px solid ' + (row[k] ? '#0073ea' : '#c3c6d4') + ';background:' + (row[k] ? '#0073ea' : '#fff') + ';color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:800;flex:none',
+        mark: row[k] ? '✓' : '', toggle: () => { if (!ro) this.setState(s => ({ rows: s.rows.map(r => r.id === row.id ? Object.assign({}, r, { [k]: !r[k] }) : r) })); } });
+      out.cmOff = [flag('workSat', 'Saturday', hasSat), flag('workSun', 'Sunday', hasSun), flag('workHol', 'Holiday', hasHol)].filter(f => f.show);
+      out.cmHasOff = out.cmOff.length > 0;
+      out.cmEstOptions = (st.sets.estimator || []).map(o => ({
+        name: o.name,
+        style: 'background:' + (row.estimator === o.name ? o.color : '#f3f5fb') + ';color:' + (row.estimator === o.name ? this.ink(o.color) : '#4a5064') + ';border:1px solid ' + (row.estimator === o.name ? o.color : '#e3e6ef') + ';border-radius:7px;padding:5px 10px;font-size:11.5px;font-weight:600;cursor:pointer',
+        pick: () => { if (!ro) this.setField(row.id, 'estimator', o.name); }
+      }));
+      return out;
+    }
+    const q = String(cm.query || '').trim().toLowerCase();
+    out.cmOnDay = sched.filter(t => t.s <= iso && t.e >= iso).map(t => ({ label: t.label, sub: t.lane === '—' ? 'Not assigned' : t.lane, range: this.calFmtRange(t.s, t.e), dot: 'width:10px;height:10px;border-radius:3px;background:' + t.color + ';flex:none', open: () => this.setState({ calModal: { iso, rowId: t.r.id } }) }));
+    out.cmHasOnDay = out.cmOnDay.length > 0;
+    out.cmList = st.rows.slice().sort((a, b) => String(b.number).localeCompare(String(a.number), undefined, { numeric: true }))
+      .filter(r => !q || (r.number + ' ' + r.name + ' ' + r.city).toLowerCase().includes(q)).slice(0, 80).map(r => {
+        const g = this.calRange(r);
+        return {
+          number: r.number, name: String(r.name || '').toUpperCase(), city: r.city || '—', est: r.estimator || 'Undefined', estStyle: this.pill(estColor(r.estimator), 'font-size:10.5px;padding:3px 7px;'),
+          sched: g ? '· on calendar ' + this.calFmtRange(g.s, g.e) : '',
+          pick: () => { if (ro) return; this.setState(s => ({ rows: s.rows.map(x => x.id === r.id ? Object.assign({}, x, { dStart: this.isoField(iso), due: this.isoField(iso) }) : x), calModal: { iso, rowId: r.id } })); }
+        };
+      });
+    out.cmListEmpty = !out.cmList.length;
+    out.cmQuery = cm.query || ''; out.cmSetQuery = e => this.setState(s => ({ calModal: Object.assign({}, s.calModal, { query: e.target.value }) }));
+    const hn = hol[iso]; const draft = String(cm.holName || '').trim();
+    out.cmIsHol = !!hn; out.cmNotHol = !hn; out.cmHolName = hn || '';
+    out.cmRemoveHol = () => this.setState(s => ({ holidays: (s.holidays || []).filter(h => h.d !== iso), calModal: null }));
+    out.cmHolOn = !!cm.holOn;
+    out.cmToggleHol = () => this.setState(s => ({ calModal: Object.assign({}, s.calModal, { holOn: !s.calModal.holOn }) }));
+    out.cmHolBox = 'width:16px;height:16px;border-radius:4px;border:1px solid ' + (cm.holOn ? '#7b3b3e' : '#c3c6d4') + ';background:' + (cm.holOn ? '#7b3b3e' : '#fff') + ';color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:800;flex:none';
+    out.cmHolMark = cm.holOn ? '✓' : '';
+    out.cmHolDraft = cm.holName || ''; out.cmSetHolName = e => this.setState(s => ({ calModal: Object.assign({}, s.calModal, { holName: e.target.value }) }));
+    const saveHol = () => { if (!draft) return; this.setState(s => ({ holidays: (s.holidays || []).filter(h => h.d !== iso).concat({ d: iso, name: draft }), calModal: null })); };
+    out.cmSaveHol = saveHol;
+    out.cmHolKey = e => { if (e.key === 'Enter') saveHol(); };
+    out.cmSaveHolStyle = 'border:0;border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:700;cursor:' + (draft ? 'pointer' : 'default') + ';background:' + (draft ? '#7b3b3e' : '#e3e6ef') + ';color:' + (draft ? '#fff' : '#9699a6');
+    return out;
   }
 
   notesVals() {
@@ -4693,7 +5162,7 @@ class Component extends DCLogic {
         const n = data.rows.length, c = data.contacts.length;
         if (!window.confirm('Restore ' + n + ' projects and ' + c + ' contacts?\n\nThis REPLACES the current data for all users.')) return;
         const patch = { settings: false };
-        ['rows', 'contacts', 'sets', 'contactCols', 'boardColW', 'stageOrder'].forEach(k => { if (data[k] !== undefined) patch[k] = data[k]; });
+        ['rows', 'contacts', 'sets', 'contactCols', 'boardColW', 'stageOrder', 'holidays', 'memos'].forEach(k => { if (data[k] !== undefined) patch[k] = data[k]; });
         if (!patch.sets) patch.sets = this.state.sets;
         this.migrate(patch);
         this.setState(patch, () => this.notice('Backup restored', n + ' projects and ' + c + ' contacts loaded and being saved to the cloud.', true));
@@ -4933,7 +5402,7 @@ class Component extends DCLogic {
               cell.isName = true; cell.text = String(r.name || '').toUpperCase();
               cell.style = base + 'font-weight:600';
               cell.onClick = () => this.setState({ editing: { id: r.id, k: c.k } });
-            } else if (c.k === 'received' || c.k === 'due') {
+            } else if (c.k === 'received' || c.k === 'due' || c.k === 'dStart') {
               cell.isText = true;
               cell.text = r[c.k] || '';
               cell.textStyle = 'font-size:12.5px;color:' + (r[c.k] ? '#3c4460' : '#c8ccd8') + ';font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;text-align:center';
@@ -5483,7 +5952,7 @@ class Component extends DCLogic {
         name: c.name, company: c.company || '—',
         initials: String(c.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
       })),
-      mobBoard: mobTab(st.nav === 'board'), mobDash: mobTab(st.nav === 'dash'), mobContacts: mobTab(st.nav === 'contacts'),
+      mobBoard: mobTab(st.nav === 'board'), mobDash: mobTab(st.nav === 'dash'), mobContacts: mobTab(st.nav === 'contacts'), mobCal: mobTab(st.nav === 'cal'),
       saveLabel: st.saveStatus === 'saving' ? 'Saving…' : st.saveStatus === 'error' ? ('Save failed' + (st.saveError ? ' — ' + st.saveError : '')) :
         (st.savedAt ? (st.cloudOn ? 'Saved to cloud ' : 'Saved locally ') + new Date(st.savedAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : (st.cloudOn ? 'Cloud connected' : 'Local mode')),
       saveDotStyle: 'width:7px;height:7px;border-radius:50%;flex:none;transition:background .2s;background:' +
@@ -5515,6 +5984,7 @@ class Component extends DCLogic {
         return { contactGroupBy: opts[(opts.indexOf(s.contactGroupBy) + 1) % opts.length] };
       }),
       ...this.notesVals(),
+      ...this.calVals(),
       contactFormOpen: !!st.contactForm,
       contactFormTitle: st.contactForm && st.contactForm.id ? 'Edit contact' : 'New contact',
       contactFormAction: st.contactForm && st.contactForm.id ? 'Save changes' : 'Create contact',
@@ -5588,31 +6058,32 @@ class Component extends DCLogic {
         const saved = (st.memos || {})[slot];
         const open = st.memoOpen === slot;
         return {
-          name: slot, open, saved: !!saved,
-          caption: saved ? saved.widgets.length + ' widgets · saved ' + saved.at : 'Empty slot',
-          style: 'width:38px;height:34px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:800;transition:all .16s;background:' +
+          name: 'Dashboard Layout #' + slot.slice(1), open, saved: !!saved,
+          caption: saved ? saved.widgets.length + ' widgets · saved ' + saved.at + ' · shared with everyone' : 'Empty slot',
+          style: 'height:34px;padding:0 11px;border-radius:8px;cursor:pointer;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;transition:all .16s;background:' +
             (saved ? '#eaf1ff' : '#fff') + ';border:1px solid ' + (open ? accent : (saved ? '#a9c9f7' : '#c3c6d4')) + ';color:' + (saved ? accent : '#9699a6'),
           toggle: () => this.setState(s => ({ memoOpen: s.memoOpen === slot ? null : slot })),
           save: () => this.setState(s => {
             const m = Object.assign({}, s.memos, { [slot]: { at: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), widgets: this.serializeWidgets(s.widgets) } });
             this.saveMemos(m);
+            setTimeout(() => this.writeNow(true), 0);
             return { memos: m, memoOpen: null };
           }),
           load: () => { if (saved) this.setState(s => ({ widgets: this.tile(s.vw || 1534, saved.widgets.map(w => Object.assign({}, w))), memoOpen: null })); },
           clear: () => this.setState(s => {
             const m = Object.assign({}, s.memos); delete m[slot];
             this.saveMemos(m);
+            setTimeout(() => this.writeNow(true), 0);
             return { memos: m, memoOpen: null };
           })
         };
       }),
       closeMemo: () => this.setState({ memoOpen: null }),
       memoAnyOpen: !!st.memoOpen,
-      resetLayout: () => this.setState(s => {
-        const m1 = (s.memos || {}).M1;
-        return { widgets: this.tile(s.vw || 1534, m1 ? m1.widgets.map(w => Object.assign({}, w)) : this.pack(this.defaultWidgetDefs())) };
-      }),
-      resetHint: (st.memos || {}).M1 ? 'Restore M1' : 'Reset layout',
+      saveNow: () => this.writeNow(true),
+      saveBtnLabel: st.saveFlash ? 'Saved ✓' : st.saveStatus === 'saving' ? 'Saving…' : 'Save',
+      saveBtnStyle: 'display:flex;align-items:center;gap:7px;border:0;padding:7px 13px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;flex:none;transition:all .18s;color:#fff;background:' +
+        (st.saveFlash ? '#00854d' : st.saveStatus === 'saving' ? '#fdab3d' : st.saveStatus === 'error' ? '#e2445c' : 'rgba(255,255,255,.14)'),
       cycleStageFilter: () => this.setState(s => { const names = [''].concat(sets.stage.map(x => x.name)); return { stageFilter: names[(names.indexOf(s.stageFilter) + 1) % names.length] }; }),
       pickerOpen: !!p, pickerQuery: st.pickerQuery,
       onPickerQuery: e => this.setState({ pickerQuery: e.target.value }),
@@ -5686,11 +6157,11 @@ class Component extends DCLogic {
       pdfRef: this.pdfRefFn || (this.pdfRefFn = (el) => { this.pdfHost = el; if (el) this.renderPdfPages(); }),
       openPdfTab: () => this.openPdfTab(),
       exportBackup: () => this.exportBackup(), importBackup: () => this.importBackup(),
-      addRow: () => this.setState(s => ({ rows: s.rows.concat({ id: 'n' + Date.now(), number: this.nextProjectNumber(), name: 'NEW PROJECT NAME', old: '', city: '', stage: 'New Lead', estimator: 'Undefined', tool: '', metric: '', notes: [], scope: [], received: '', due: '', area: '', by: '', byColor: '', lead: 'None', contacts: [], group: 'New Leads', proposal: '', signed: false, deal: '', po: '' }) })),
+      addRow: () => this.setState(s => ({ rows: s.rows.concat({ id: 'n' + Date.now(), number: this.nextProjectNumber(), name: 'NEW PROJECT NAME', old: '', city: '', stage: 'New Lead', estimator: 'Undefined', tool: '', metric: '', notes: [], scope: [], received: '', dStart: '', due: '', area: '', by: '', byColor: '', lead: 'None', contacts: [], group: 'New Leads', proposal: '', signed: false, deal: '', po: '' }) })),
       isBrowser: st.device === 'browser', isTablet: st.device === 'tablet', isPhone: st.device === 'phone',
       setBrowser: () => this.setState({ device: 'browser' }), setTablet: () => this.setState({ device: 'tablet' }), setPhone: () => this.setState({ device: 'phone' }),
       dvBrowser: dev(st.device === 'browser'), dvTablet: dev(st.device === 'tablet'), dvPhone: dev(st.device === 'phone'),
-      navContacts: navBtn(st.nav === 'contacts'), navBoard: navBtn(st.nav === 'board'), navDash: navBtn(st.nav === 'dash'),
+      navContacts: navBtn(st.nav === 'contacts'), navBoard: navBtn(st.nav === 'board'), navDash: navBtn(st.nav === 'dash'), navCal: navBtn(st.nav === 'cal'), tileCal: tile(st.nav === 'cal'),
       tileBoard: tile(st.nav === 'board'), tileDash: tile(st.nav === 'dash'), tileContacts: tile(st.nav === 'contacts'),
       railFlow: 'width:' + flowW + 'px;flex:none;position:relative;z-index:40;transition:width .34s ' + ease,
       sidePanel: 'position:absolute;left:0;top:0;bottom:0;width:' + panelW + 'px;background:#fff;border-right:1px solid #e3e6ef;padding:14px 10px;display:flex;flex-direction:column;overflow:' + (wide ? 'hidden' : 'visible') + ';' +
@@ -5724,9 +6195,9 @@ class Component extends DCLogic {
       modeHint: mode === 'rail' ? 'Collapses to a 68px monogram rail — labels fade, layout reflows.'
         : mode === 'peek' ? 'Slim 56px rail; hover it and the full menu floats over the content.'
         : 'Tucks fully away; a logo handle on the edge slides it back in.',
-      goContacts: () => this.setState({ nav: 'contacts' }), goBoard: () => this.setState({ nav: 'board' }), goDash: () => this.setState({ nav: 'dash' }),
+      goCal: () => this.setState({ nav: 'cal' }), goContacts: () => this.setState({ nav: 'contacts' }), goBoard: () => this.setState({ nav: 'board' }), goDash: () => this.setState({ nav: 'dash' }),
       showBoard: st.nav === 'board', showTable: st.nav === 'board' && st.view === 'table', showKanban: st.nav === 'board' && st.view === 'kanban',
-      showDash: st.nav === 'dash', showContacts: st.nav === 'contacts',
+      showDash: st.nav === 'dash', showContacts: st.nav === 'contacts', showCal: st.nav === 'cal',
       setTable: () => this.setState({ view: 'table' }), setKanban: () => this.setState({ view: 'kanban' }),
       tabTable: tab(st.view === 'table'), tabKanban: tab(st.view === 'kanban'),
       kanban: (function (self) {
