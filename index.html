@@ -5467,7 +5467,13 @@ class Component extends DCLogic {
               setF(p.col, cur.includes(o.name) ? cur.filter(x => x !== o.name) : cur.concat(o.name));
             } else { setF(p.col, o.name); this.setState({ picker: null }); }
           }
-        })),
+        })).concat(isContacts ? [] : [{
+          name: 'Empty Label',
+          style: listy
+            ? 'text-align:left;background:transparent;border:1px dashed #cfd4e0;padding:8px 10px;border-radius:8px;font-size:12.5px;color:#9699a6;cursor:pointer;font-weight:500;font-style:italic;transition:all .15s'
+            : 'background:#fff;color:#9699a6;border:1px dashed #cfd4e0;padding:11px 8px;border-radius:7px;font-size:12px;font-weight:600;font-style:italic;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:all .15s',
+          pick: () => { setF(p.col, p.multi ? [] : ''); this.setState({ picker: null }); }
+        }]),
         edit: () => this.setState({ picker: null, settings: true })
       };
     }
