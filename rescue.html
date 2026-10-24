@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timplex CRM — Data Rescue</title>
+<style>
+  :root { --bg:#f6f7fb; --card:#fff; --ink:#1f2330; --mut:#676879; --line:#e3e5ec; --blue:#0073ea; --green:#00a35c; --red:#d83a52; --amber:#c27a00; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  header { background:#16181f; color:#fff; padding:14px 16px; font-weight:700; letter-spacing:.3px; }
+  main { max-width:760px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:22px; margin:4px 0 6px; }
+  p.lead { color:var(--mut); margin:0 0 18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:14px; }
+  .verdict { font-weight:700; font-size:17px; margin-bottom:8px; }
+  .good { color:var(--green); } .bad { color:var(--red); } .warn { color:var(--amber); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td { padding:6px 4px; border-bottom:1px solid var(--line); vertical-align:top; }
+  td:first-child { color:var(--mut); width:46%; }
+  button { appearance:none; border:0; border-radius:8px; padding:12px 18px; font:600 15px inherit; font-family:inherit; cursor:pointer; margin:8px 8px 0 0; }
+  .primary { background:var(--blue); color:#fff; }
+  .ghost { background:#eef1f7; color:var(--ink); }
+  .note { font-size:13px; color:var(--mut); margin-top:10px; }
+  code { background:#eef1f7; padding:1px 5px; border-radius:4px; font-size:13px; }
+  textarea { width:100%; height:120px; margin-top:10px; font:12px monospace; display:none; }
+</style>
+</head>
+<body>
+<header>TIMPLEX CRM — DATA RESCUE</header>
+<main>
+  <h1>Saved copy on this device</h1>
+  <p class="lead">This page only <b>reads</b> the copy of the CRM stored in this browser. It does not sign in, does not connect to the cloud and changes nothing.</p>
+  <div id="out"></div>
+  <p class="note">Do not open the CRM itself on this device until the rescue is finished — opening it replaces this copy with the cloud data.</p>
+</main>
+<script>
+(function () {
+  'use strict';
+  var out = document.getElementById('out');
+  var SEED_COUNT = 195, SEED_TOP = 260935;   // the copy embedded in the app on Sep 22 (the "old" data)
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function read(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function keys() { var a = []; try { for (var i = 0; i < localStorage.length; i++) a.push(localStorage.key(i)); } catch (e) {} return a; }
+  function fmt(iso) { if (!iso) return '—'; var d = new Date(iso); return isNaN(d) ? String(iso) : d.toLocaleString(); }
+  function topNumber(rows) {
+    var best = 0;
+    rows.forEach(function (r) { var n = parseInt(String((r && r.number) || '').replace(/\D/g, ''), 10); if (n > best && n < 1e7) best = n; });
+    return best || '—';
+  }
+  function device() {
+    var ua = navigator.userAgent || '';
+    if (/iPhone/.test(ua)) return 'iphone'; if (/iPad/.test(ua)) return 'ipad'; if (/Android/.test(ua)) return 'android';
+    if (/Mac/.test(ua)) return 'mac'; if (/Windows/.test(ua)) return 'windows'; return 'device';
+  }
+
+  var all = keys().filter(function (k) { return /^timplex-crm/.test(k); });
+  var raw = read('timplex-crm-data-v1');
+  var data = null;
+  try { data = raw ? JSON.parse(raw) : null; } catch (e) { data = null; }
+
+  if (!data || !Array.isArray(data.rows)) {
+    out.innerHTML = '<div class="card"><div class="verdict bad">No CRM copy found in this browser.</div>' +
+      '<div>Try the same link in the other browsers on this device (Chrome, Edge, Safari, Firefox) — each keeps its own copy.</div>' +
+      (all.length ? '<div class="note">Other CRM keys found: ' + all.map(esc).join(', ') + '</div>' : '') + '</div>';
+    return;
+  }
+
+  var rows = data.rows, contacts = Array.isArray(data.contacts) ? data.contacts : [];
+  var top = topNumber(rows);
+  var isSeed = rows.length === SEED_COUNT && top === SEED_TOP;
+  var verdict = isSeed
+    ? '<div class="verdict bad">This is the OLD copy (195 projects, last #260935). It does not have the lost data.</div>'
+    : (rows.length > SEED_COUNT || (typeof top === 'number' && top > SEED_TOP)
+        ? '<div class="verdict good">This copy has MORE data than the old one — please download it now.</div>'
+        : '<div class="verdict warn">This copy is different from the old one — download it so it can be checked.</div>');
+
+  // same format as Settings → Backup, so it can be restored directly
+  var backup = { app: 'Timplex CRM', version: 2, rescuedFrom: device(), rescuedAt: new Date().toISOString() };
+  Object.keys(data).forEach(function (k) { backup[k] = data[k]; });
+  backup.__at = data.__at || backup.rescuedAt;
+  var memos = read('timplex-crm-dashboard-memos');
+  if (memos && !backup.memos) { try { backup.memos = JSON.parse(memos); } catch (e) {} }
+  var json = JSON.stringify(backup);
+  var stamp = String(data.__at || '').replace(/[:.]/g, '-').slice(0, 16) || 'unknown';
+  var fname = 'timplex-crm-RESCUE-' + device() + '-' + stamp + '.json';
+
+  var calendar = rows.filter(function (r) { return r && r.dStart; }).length;
+  out.innerHTML = '<div class="card">' + verdict +
+    '<table>' +
+    '<tr><td>Projects</td><td><b>' + rows.length + '</b></td></tr>' +
+    '<tr><td>Highest project number</td><td><b>' + esc(top) + '</b></td></tr>' +
+    '<tr><td>Contacts</td><td>' + contacts.length + '</td></tr>' +
+    '<tr><td>Projects on the calendar</td><td>' + calendar + '</td></tr>' +
+    '<tr><td>Last saved on this device</td><td><b>' + esc(fmt(data.__at)) + '</b></td></tr>' +
+    '<tr><td>Size</td><td>' + Math.round(json.length / 1024) + ' KB</td></tr>' +
+    '</table>' +
+    '<button class="primary" id="dl">Download rescue file</button>' +
+    '<button class="ghost" id="cp">Copy as text</button>' +
+    '<textarea id="ta" readonly></textarea>' +
+    '<div class="note">File name: <code>' + esc(fname) + '</code> — send it to Elisson.</div></div>';
+
+  document.getElementById('dl').onclick = function () {
+    var blob = new Blob([json], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = fname;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  };
+  document.getElementById('cp').onclick = function () {
+    var ta = document.getElementById('ta'); ta.style.display = 'block'; ta.value = json; ta.select();
+    var done = function () { document.getElementById('cp').textContent = 'Copied ✓ — paste it in an e-mail to Elisson'; };
+    if (navigator.clipboard) navigator.clipboard.writeText(json).then(done, function () { try { document.execCommand('copy'); done(); } catch (e) {} });
+    else { try { document.execCommand('copy'); done(); } catch (e) {} }
+  };
+})();
+</script>
+</body>
+</html>
