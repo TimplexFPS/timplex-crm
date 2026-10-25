@@ -35,7 +35,7 @@ window.addEventListener('DOMContentLoaded', () => {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, runTransaction, query, orderBy, limit, writeBatch }
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, runTransaction, query, orderBy, limit, limitToLast, writeBatch }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const cfg = window.TIMPLEX_FIREBASE || {};
@@ -138,8 +138,8 @@ const cloud = {
   // ---- version history (admin) ----
   async listHistory(n) {
     try {
-      const snap = await getDocs(query(HIDX, orderBy("__name__", "desc"), limit(n || HISTORY_KEEP)));
-      return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+      const snap = await getDocs(query(HIDX, orderBy("__name__"), limitToLast(n || HISTORY_KEEP)));
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data())).reverse();
     } catch (e) { throw friendly(e); }
   },
   async loadHistory(id) {
@@ -150,8 +150,8 @@ const cloud = {
     let total = 0;
     try {
       for (let round = 0; round < 5; round++) {
-        const snap = await getDocs(query(HIDX, orderBy("__name__", "desc"), limit(400)));
-        const old = snap.docs.slice(keep || HISTORY_KEEP);
+        const snap = await getDocs(query(HIDX, orderBy("__name__"), limitToLast(400)));
+        const old = snap.docs.slice().reverse().slice(keep || HISTORY_KEEP);
         if (!old.length) break;
         for (let i = 0; i < old.length; i += 200) {
           const b = writeBatch(db);
@@ -168,8 +168,8 @@ const cloud = {
   // ---- daily backups written by the GitHub Actions job (admin, read-only) ----
   async listBackups(n) {
     try {
-      const snap = await getDocs(query(BACKUPS, orderBy("__name__", "desc"), limit(n || 30)));
-      return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+      const snap = await getDocs(query(BACKUPS, orderBy("__name__"), limitToLast(n || 30)));
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data())).reverse();
     } catch (e) { throw friendly(e); }
   },
   // the files themselves live in backups/{day}/files/data (read only when the admin clicks)
