@@ -35,7 +35,7 @@ window.addEventListener('DOMContentLoaded', () => {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, runTransaction, query, orderBy, limit, limitToLast, writeBatch }
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, runTransaction, writeBatch }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const cfg = window.TIMPLEX_FIREBASE || {};
@@ -138,8 +138,8 @@ const cloud = {
   // ---- version history (admin) ----
   async listHistory(n) {
     try {
-      const snap = await getDocs(query(HIDX, orderBy("__name__"), limitToLast(n || HISTORY_KEEP)));
-      return snap.docs.map(d => Object.assign({ id: d.id }, d.data())).reverse();
+      const snap = await getDocs(HIDX);
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => (a.id < b.id ? 1 : -1)).slice(0, n || HISTORY_KEEP);
     } catch (e) { throw friendly(e); }
   },
   async loadHistory(id) {
@@ -150,8 +150,8 @@ const cloud = {
     let total = 0;
     try {
       for (let round = 0; round < 5; round++) {
-        const snap = await getDocs(query(HIDX, orderBy("__name__"), limitToLast(400)));
-        const old = snap.docs.slice().reverse().slice(keep || HISTORY_KEEP);
+        const snap = await getDocs(HIDX);
+        const old = snap.docs.slice().sort((a, b) => (a.id < b.id ? 1 : -1)).slice(keep || HISTORY_KEEP).slice(0, 400);
         if (!old.length) break;
         for (let i = 0; i < old.length; i += 200) {
           const b = writeBatch(db);
@@ -159,7 +159,7 @@ const cloud = {
           await b.commit();
         }
         total += old.length;
-        if (snap.docs.length < 400) break;
+        if (old.length < 400) break;
       }
       return total;
     } catch (e) { console.warn("[cloud] prune", e); return total; }
@@ -168,8 +168,8 @@ const cloud = {
   // ---- daily backups written by the GitHub Actions job (admin, read-only) ----
   async listBackups(n) {
     try {
-      const snap = await getDocs(query(BACKUPS, orderBy("__name__"), limitToLast(n || 30)));
-      return snap.docs.map(d => Object.assign({ id: d.id }, d.data())).reverse();
+      const snap = await getDocs(BACKUPS);
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => (a.id < b.id ? 1 : -1)).slice(0, n || 30);
     } catch (e) { throw friendly(e); }
   },
   // the files themselves live in backups/{day}/files/data (read only when the admin clicks)
@@ -3826,7 +3826,7 @@ input,button,textarea{font-family:inherit}
             <button onClick="{{ reloadAdminPanels }}" style="background:#fff;border:1px solid #c3c6d4;color:#323338;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer" style-hover="background:#f5f6f8">Refresh</button>
           </div>
           <div style="font-size:12px;color:#676879;margin-bottom:10px">Every night at 3 am (New York) the full CRM — projects, calendar, contacts, labels, memos and PO attachments — is saved as JSON and Excel. Visible only to the administrator. Older copies stay in the private GitHub repository.</div>
-          <div style="font-size:12px;color:#676879">{{ adminPanelStatus }}</div>
+          <div style="font-size:12px;color:#676879;overflow-wrap:anywhere;word-break:break-word;margin-bottom:6px">{{ adminPanelStatus }}</div>
           <sc-if value="{{ hasBackups }}">
           <div style="max-height:260px;overflow:auto;border:1px solid #eef0f6;border-radius:8px">
             <sc-for list="{{ backupRows }}" as="b" hint-placeholder-count="3">
@@ -4963,7 +4963,10 @@ class Component extends DCLogic {
     try {
       const [hist, backups] = await Promise.all([cloud.listHistory(60), cloud.listBackups(30)]);
       this.setState({ historyList: hist, backupList: backups, adminPanelStatus: backups.length ? '' : 'No daily backup yet. The GitHub job writes the first one at the next 3 am run (or run it by hand in GitHub → Actions).' });
-    } catch (e) { this.setState({ adminPanelStatus: 'Could not load: ' + ((e && e.message) || e) }); }
+    } catch (e) {
+      const m = String((e && e.message) || e);
+      this.setState({ adminPanelStatus: 'Could not load the backup list (' + (/index/i.test(m) ? 'database index' : /permission|refused/i.test(m) ? 'permission — check the Firestore rules' : m.slice(0, 120)) + '). Reload the page and try again.' });
+    }
   }
   async restoreHistory(h) {
     const cloud = this.cloud(); if (!cloud) return;
