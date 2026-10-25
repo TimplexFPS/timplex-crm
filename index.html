@@ -35,7 +35,7 @@ window.addEventListener('DOMContentLoaded', () => {
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp }
+import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, getDocs, deleteDoc, serverTimestamp, runTransaction, query, orderBy, limit, writeBatch }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const cfg = window.TIMPLEX_FIREBASE || {};
@@ -44,19 +44,37 @@ const enabled = !!(cfg.apiKey && cfg.projectId && cfg.appId && !placeholder);
 
 const USERS = { elisson: "elisson@timplex.com", paul: "paul@timplex.com", matheus: "matheus@timplex.com", daniel: "daniel@timplex.com" };
 
-let auth = null, db = null, DOC = null, initError = null;
+let auth = null, db = null, DOC = null, HIST = null, HIDX = null, BACKUPS = null, initError = null;
 if (enabled) {
   try {
     const app = initializeApp(cfg);
     auth = getAuth(app);
     db = getFirestore(app);
     DOC = doc(db, "workspaces", "timplex");
+    HIST = collection(db, "workspaces", "timplex", "history");       // full previous versions
+    HIDX = collection(db, "workspaces", "timplex", "historyIndex");  // tiny summaries for the list
+    BACKUPS = collection(db, "backups");                             // daily backups written by the GitHub job
   } catch (e) { initError = e; console.error("[cloud] init failed", e); }
+}
+
+// history entries are grouped in 15-minute buckets, so a burst of autosaves keeps one version per bucket
+const HISTORY_KEEP = 60;
+function histId(iso) {
+  const d = new Date(iso || Date.now());
+  if (isNaN(d)) return "unknown";
+  d.setUTCMinutes(Math.floor(d.getUTCMinutes() / 15) * 15, 0, 0);
+  return d.toISOString().replace(/[:.]/g, "-");
+}
+function syncError(code, remote, extra) {
+  const e = new Error(code === "rev-conflict" ? "Someone else saved first." : "Save refused: it would remove too many projects.");
+  e.code = code; e.remote = remote || null; Object.assign(e, extra || {});
+  return e;
 }
 
 function friendly(e) {
   const code = (e && e.code) || "";
-  if (/permission-denied/.test(code)) return new Error("Permission denied — publish the Firestore rules (manual, step 3) and check the user e-mail.");
+  if (code === "rev-conflict" || code === "wipe-guard") return e;
+  if (/permission-denied/.test(code)) return new Error("The cloud refused this save (rules). If you removed many projects, ask the administrator; otherwise reload the page.");
   if (/unavailable|network/.test(code)) return new Error("No connection to the cloud — check your internet.");
   if (/unauthenticated/.test(code)) return new Error("Session expired — sign in again.");
   if (/resource-exhausted/.test(code)) return new Error("Firestore free quota reached for today.");
@@ -84,14 +102,80 @@ const cloud = {
     try { const s = await getDoc(DOC); return s.exists() ? s.data() : null; }
     catch (e) { throw friendly(e); }
   },
-  async saveDoc(payload) {
+  // Transactional save. Refuses to overwrite a version it has not seen (rev check) and refuses to
+  // drop many projects at once (wipe guard) unless opts.force. The version being replaced is copied
+  // to history inside the same transaction, so nothing is ever lost silently again.
+  async saveDoc(payload, opts) {
+    opts = opts || {};
     // Firestore refuses `undefined`; the JSON round-trip drops those keys entirely.
     try { payload = JSON.parse(JSON.stringify(payload)); } catch (e) {}
-    try { await setDoc(DOC, { payload, __at: payload.__at, updatedBy: cloud.currentEmail() || "?", updatedAt: serverTimestamp() }); }
-    catch (e) { throw friendly(e); }
+    delete payload.__dirty; delete payload.__seed;
+    const by = cloud.currentEmail() || "?";
+    try {
+      return await runTransaction(db, async (t) => {
+        const s = await t.get(DOC);
+        const cur = s.exists() ? s.data() : null;
+        const curRev = cur && typeof cur.rev === "number" ? cur.rev : 0;
+        if (cur && !opts.force && opts.expectRev != null && curRev !== opts.expectRev) throw syncError("rev-conflict", cur);
+        const curRows = cur && cur.payload && Array.isArray(cur.payload.rows) ? cur.payload.rows.length : 0;
+        const newRows = Array.isArray(payload.rows) ? payload.rows.length : 0;
+        if (cur && !opts.force && curRows - newRows > Math.max(5, Math.floor(curRows * 0.1))) throw syncError("wipe-guard", cur, { curRows, newRows });
+        if (cur && cur.payload) {
+          const id = histId(cur.__at);
+          const counts = { rows: curRows, contacts: Array.isArray(cur.payload.contacts) ? cur.payload.contacts.length : 0 };
+          t.set(doc(HIST, id), { payload: cur.payload, __at: cur.__at || "", updatedBy: cur.updatedBy || "?", rev: curRev, replacedBy: by, replacedAt: serverTimestamp(), reason: opts.reason || "autosave" });
+          t.set(doc(HIDX, id), Object.assign({ __at: cur.__at || "", updatedBy: cur.updatedBy || "?", rev: curRev, replacedBy: by, replacedAt: serverTimestamp(), reason: opts.reason || "autosave" }, counts));
+        }
+        t.set(DOC, { payload, __at: payload.__at, updatedBy: by, updatedAt: serverTimestamp(), rev: curRev + 1, force: !!opts.force });
+        return curRev + 1;
+      });
+    } catch (e) { throw friendly(e); }
   },
   onRemote(cb) {
     return onSnapshot(DOC, (s) => { if (s.exists() && !s.metadata.hasPendingWrites) cb(s.data()); }, (e) => console.warn("[cloud] listener", e));
+  },
+
+  // ---- version history (admin) ----
+  async listHistory(n) {
+    try {
+      const snap = await getDocs(query(HIDX, orderBy("__name__", "desc"), limit(n || HISTORY_KEEP)));
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+    } catch (e) { throw friendly(e); }
+  },
+  async loadHistory(id) {
+    try { const s = await getDoc(doc(HIST, id)); return s.exists() ? s.data() : null; }
+    catch (e) { throw friendly(e); }
+  },
+  async pruneHistory(keep) {
+    let total = 0;
+    try {
+      for (let round = 0; round < 5; round++) {
+        const snap = await getDocs(query(HIDX, orderBy("__name__", "desc"), limit(400)));
+        const old = snap.docs.slice(keep || HISTORY_KEEP);
+        if (!old.length) break;
+        for (let i = 0; i < old.length; i += 200) {
+          const b = writeBatch(db);
+          old.slice(i, i + 200).forEach(d => { b.delete(doc(HIST, d.id)); b.delete(doc(HIDX, d.id)); });
+          await b.commit();
+        }
+        total += old.length;
+        if (snap.docs.length < 400) break;
+      }
+      return total;
+    } catch (e) { console.warn("[cloud] prune", e); return total; }
+  },
+
+  // ---- daily backups written by the GitHub Actions job (admin, read-only) ----
+  async listBackups(n) {
+    try {
+      const snap = await getDocs(query(BACKUPS, orderBy("__name__", "desc"), limit(n || 30)));
+      return snap.docs.map(d => Object.assign({ id: d.id }, d.data()));
+    } catch (e) { throw friendly(e); }
+  },
+  // the files themselves live in backups/{day}/files/data (read only when the admin clicks)
+  async loadBackupFiles(id) {
+    try { const s = await getDoc(doc(BACKUPS, id, "files", "data")); return s.exists() ? s.data() : null; }
+    catch (e) { throw friendly(e); }
   },
 
   // PDF -> base64 -> chunks of 700 KB (Firestore documents max 1 MiB). Metadata is written LAST,
@@ -3583,6 +3667,53 @@ input,button,textarea{font-family:inherit}
     </div>
   </sc-if>
 
+  <sc-if value="{{ hasSyncChoice }}">
+    <div style="position:fixed;inset:0;background:rgba(16,19,28,.55);z-index:160;animation:fadeIn .18s"></div>
+    <div style="position:fixed;inset:0;z-index:161;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:none">
+      <div style="width:min(520px,100%);background:#fff;border-radius:14px;box-shadow:0 30px 80px rgba(15,20,40,.35);padding:24px;pointer-events:auto;animation:slideUp .2s both">
+        <h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:#323338">Two versions of the data</h3>
+        <p style="margin:0 0 14px;font-size:13.5px;color:#676879;line-height:1.5">This device has changes that were never saved to the cloud, and the cloud holds a different version. Choose which one to keep. If you upload this device's version, the cloud version is kept in the history; if you use the cloud version, export this device's changes first if you need them.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+          <div style="border:1px solid #cfe0fb;background:#f5f9ff;border-radius:10px;padding:12px">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#0073ea;margin-bottom:4px">Cloud (recommended)</div>
+            <div style="font-size:20px;font-weight:700;color:#323338">{{ syncRemoteRows }} <span style="font-size:12px;font-weight:600;color:#676879">projects</span></div>
+            <div style="font-size:12px;color:#676879">saved {{ syncRemoteAt }} by {{ syncRemoteBy }}</div>
+          </div>
+          <div style="border:1px solid #e3e6ef;border-radius:10px;padding:12px">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#676879;margin-bottom:4px">This device</div>
+            <div style="font-size:20px;font-weight:700;color:#323338">{{ syncLocalRows }} <span style="font-size:12px;font-weight:600;color:#676879">projects</span></div>
+            <div style="font-size:12px;color:#676879">edited here {{ syncLocalAt }}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button onClick="{{ syncUseCloud }}" style="flex:1;background:#0073ea;color:#fff;border:0;border-radius:8px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer" style-hover="background:#0060b9">Use the cloud version</button>
+          <sc-if value="{{ syncCanKeepLocal }}">
+            <button onClick="{{ syncUseLocal }}" style="flex:1;background:#fff;color:#323338;border:1px solid #c3c6d4;border-radius:8px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer" style-hover="background:#f5f6f8">Upload this device's version</button>
+          </sc-if>
+          <button onClick="{{ syncExportLocal }}" style="flex:1;background:#fff;color:#323338;border:1px solid #c3c6d4;border-radius:8px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer" style-hover="background:#f5f6f8">Export this device's version (.json)</button>
+        </div>
+        <sc-if value="{{ syncLocalLocked }}"><p style="margin:12px 0 0;font-size:12px;color:#676879">Only the administrator can upload a device version over the cloud. Export this device's version first if you need to keep these changes, then use the cloud version.</p></sc-if>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ hasWipeGuard }}">
+    <div style="position:fixed;inset:0;background:rgba(16,19,28,.55);z-index:160;animation:fadeIn .18s"></div>
+    <div style="position:fixed;inset:0;z-index:161;display:flex;align-items:center;justify-content:center;padding:24px;pointer-events:none">
+      <div style="width:min(460px,100%);background:#fff;border-radius:14px;box-shadow:0 30px 80px rgba(15,20,40,.35);padding:24px;pointer-events:auto;animation:slideUp .2s both;text-align:center">
+        <div style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;margin:0 auto 14px;background:#ffeaee;color:#e2445c">!</div>
+        <h3 style="margin:0 0 8px;font-size:18px;font-weight:700;color:#323338">Save blocked</h3>
+        <p style="margin:0 0 18px;font-size:13.5px;color:#676879;line-height:1.5">{{ wipeText }}</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button onClick="{{ wipeCancel }}" style="flex:1;background:#0073ea;color:#fff;border:0;border-radius:8px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer" style-hover="background:#0060b9">Cancel and reload the cloud</button>
+          <sc-if value="{{ wipeCanConfirm }}">
+            <button onClick="{{ wipeConfirm }}" style="flex:1;background:#fff;color:#e2445c;border:1px solid #e2445c;border-radius:8px;padding:11px;font-size:13.5px;font-weight:600;cursor:pointer" style-hover="background:#fff5f6">Yes, remove them</button>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
   <sc-if value="{{ hasPdfView }}">
     <div onClick="{{ closePdf }}" style="position:fixed;inset:0;background:rgba(16,19,28,.72);z-index:140;animation:fadeIn .18s"></div>
     <div style="position:fixed;inset:0;z-index:141;display:flex;align-items:center;justify-content:center;padding:18px;pointer-events:none">
@@ -3685,6 +3816,53 @@ input,button,textarea{font-family:inherit}
           </sc-if>
         </div>
       </div>
+      <sc-if value="{{ isAdminUser }}">
+      <div style="padding:18px 22px 0">
+        <div style="border:1px solid #e3e6ef;border-radius:12px;padding:14px 15px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+            <div style="font-size:14px;font-weight:700;color:#323338">Daily backups</div>
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#00854d;background:#e6f7ee;border-radius:6px;padding:2px 7px">3 am · last 30 days</span>
+            <div style="flex:1"></div>
+            <button onClick="{{ reloadAdminPanels }}" style="background:#fff;border:1px solid #c3c6d4;color:#323338;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:600;cursor:pointer" style-hover="background:#f5f6f8">Refresh</button>
+          </div>
+          <div style="font-size:12px;color:#676879;margin-bottom:10px">Every night at 3 am (New York) the full CRM — projects, calendar, contacts, labels, memos and PO attachments — is saved as JSON and Excel. Visible only to the administrator. Older copies stay in the private GitHub repository.</div>
+          <div style="font-size:12px;color:#676879">{{ adminPanelStatus }}</div>
+          <sc-if value="{{ hasBackups }}">
+          <div style="max-height:260px;overflow:auto;border:1px solid #eef0f6;border-radius:8px">
+            <sc-for list="{{ backupRows }}" as="b" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid #f0f1f5;font-size:12.5px">
+                <span style="font-family:'IBM Plex Mono',monospace;font-weight:600;color:#323338;min-width:92px">{{ b.date }}</span>
+                <span style="color:#676879;flex:1">{{ b.meta }}</span>
+                <button onClick="{{ b.dlJson }}" style="background:#fff;border:1px solid #c3c6d4;color:#323338;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer" style-hover="background:#f5f6f8">JSON</button>
+                <button onClick="{{ b.dlXlsx }}" style="{{ b.xlsxStyle }}" style-hover="background:#f0faf4">Excel</button>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+        </div>
+      </div>
+      <div style="padding:18px 22px 0">
+        <div style="border:1px solid #e3e6ef;border-radius:12px;padding:14px 15px">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px">
+            <div style="font-size:14px;font-weight:700;color:#323338">Cloud version history</div>
+            <span style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#0073ea;background:#eaf3ff;border-radius:6px;padding:2px 7px">automatic · last 60 versions</span>
+          </div>
+          <div style="font-size:12px;color:#676879;margin-bottom:10px">Every save keeps the version it replaced (one per 15 minutes). Restoring puts that version back for everyone; the current one is kept in the history too.</div>
+          <sc-if value="{{ hasHistory }}">
+          <div style="max-height:260px;overflow:auto;border:1px solid #eef0f6;border-radius:8px">
+            <sc-for list="{{ historyRows }}" as="h" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:10px;padding:7px 10px;border-bottom:1px solid #f0f1f5;font-size:12.5px">
+                <span style="font-weight:600;color:#323338;min-width:150px">{{ h.when }}</span>
+                <span style="color:#676879;flex:1">{{ h.meta }}</span>
+                <button onClick="{{ h.restore }}" style="background:#fff;border:1px solid #c3c6d4;color:#323338;border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer" style-hover="background:#f5f6f8">Restore</button>
+              </div>
+            </sc-for>
+          </div>
+          </sc-if>
+          <sc-if value="{{ noHistory }}"><div style="font-size:12px;color:#676879">No versions yet — the history starts with the next save.</div></sc-if>
+        </div>
+      </div>
+      </sc-if>
       <div style="padding:18px 22px 0">
         <div style="border:1px solid #e3e6ef;border-radius:12px;padding:14px 15px">
           <div style="font-size:14px;font-weight:700;color:#323338;margin-bottom:4px">Appearance</div>
@@ -4176,6 +4354,12 @@ class Component extends DCLogic {
       const so = JSON.parse(localStorage.getItem('timplex-crm-stage-order') || 'null');
       if (Array.isArray(so) && so.length) this.setState({ stageOrder: so });
     } catch (e) {}
+    // back online: reconnect, or push edits that failed while offline
+    window.addEventListener('online', () => {
+      if (!this.state.authUser || !this.cloud()) return;
+      if (!this.state.cloudOn) this.connectCloud();
+      else if (this.localDirty) { this.lastSnap = null; this.writeNow(false); }
+    });
     // flush pending edits if the tab is closed mid-debounce
     this.flushSave = () => { if (this.saveTimer) this.writeNow(false); };
     window.addEventListener('beforeunload', this.flushSave);
@@ -4201,6 +4385,9 @@ class Component extends DCLogic {
         this.migrate(patch);
         patch.saveStatus = 'saved';
         patch.savedAt = saved.__at || null;
+        this.localDirty = !!saved.__dirty;   // edited on this device and not yet confirmed by the cloud
+        this.localSeed = !!saved.__seed;     // still the copy embedded in the app (never edited)
+        this.localRev = typeof saved.__rev === 'number' ? saved.__rev : null;  // cloud version this copy is based on
       }
     } catch (e) { console.warn('[autosave] hydrate failed', e); }
     const finish = () => {
@@ -4208,8 +4395,10 @@ class Component extends DCLogic {
       if (!this.state.memos || !Object.keys(this.state.memos).length) { const lm = this.loadMemos(); if (lm && Object.keys(lm).length) this.state.memos = lm; }
       this.lastSnap = this.persistKeys().map(k => this.state[k]);
       this.hydrated = true;
-      // first run with no store yet: persist the seed so the file exists
-      if (!patch) { this.lastSnap = null; this.scheduleSave(); }
+      // first run with no store yet: persist the embedded copy so the file exists. It is marked as
+      // "seed" and is NOT an edit: it can never be pushed over the cloud (that is what wiped the
+      // database on 2026-10-23).
+      if (!patch) { this.localSeed = true; this.localDirty = false; this.lastSnap = null; this.seedPersist = true; this.scheduleSave(); }
     };
     if (patch) this.setState(patch, finish); else finish();
   }
@@ -4217,6 +4406,10 @@ class Component extends DCLogic {
     const snap = this.persistKeys().map(k => this.state[k]);
     if (this.lastSnap && snap.every((v, i) => v === this.lastSnap[i])) return;
     this.lastSnap = snap;
+    this.editSeq = (this.editSeq || 0) + 1;
+    if (this.seedPersist) { this.seedPersist = false; }
+    else if (this.migrationSave) { /* data format upgrade after loading the cloud version: not a user edit */ }
+    else { this.localDirty = true; this.localSeed = false; }
     if (this.state.saveStatus !== 'saving') this.setState({ saveStatus: 'saving' });
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => this.writeNow(false), 400);
@@ -4224,20 +4417,57 @@ class Component extends DCLogic {
   // one real write: localStorage first (instant), then Firestore
   writeNow(manual) {
     clearTimeout(this.saveTimer); this.saveTimer = null;
+    // one cloud transaction at a time: a save that arrives while another is in flight runs right after it
+    if (this.saveInFlight) { this.pendingWrite = true; if (manual) this.pendingManual = true; return this.saveInFlight; }
     this.lastSnap = this.persistKeys().map(k => this.state[k]);
-    const out = { __at: new Date().toISOString() };
+    const out = { __at: new Date().toISOString(), __dirty: !!this.localDirty, __seed: !!this.localSeed, __rev: typeof this.rev === 'number' ? this.rev : null };
     this.persistKeys().forEach(k => { out[k] = this.state[k]; });
-    try { localStorage.setItem(this.dataKey(), JSON.stringify(out)); } catch (e) { console.warn('[autosave] local', e); }
+    this.writeLocal(out);
     const cloud = this.cloud();
     const flash = () => { if (!manual) return; this.setState({ saveFlash: true }); clearTimeout(this.flashTimer); this.flashTimer = setTimeout(() => this.setState({ saveFlash: false }), 2200); };
-    if (cloud && this.state.authUser) {
+    // a forced save (restore, confirmed removal) is consumed here whatever happens next, so it can never leak into a later save
+    const force = !!this.forceNext; const reason = this.forceReason || 'autosave'; this.forceNext = false; this.forceReason = ''; this.migrationSave = false;
+    if (cloud && this.state.authUser && this.state.cloudOn) {
       if (this.state.saveStatus !== 'saving') this.setState({ saveStatus: 'saving' });
-      return cloud.saveDoc(out)
-        .then(() => { this.setState({ saveStatus: 'saved', savedAt: out.__at, saveError: '' }); flash(); })
-        .catch(e => { console.error('[autosave] cloud failed', e); this.setState({ saveStatus: 'error', saveError: (e && e.message) || 'cloud error' }); });
+      const seq = this.editSeq || 0;
+      this.saveInFlight = cloud.saveDoc(out, { expectRev: this.rev, force, reason })
+        .then((rev) => {
+          this.rev = rev;
+          if ((this.editSeq || 0) === seq) { this.localDirty = false; this.writeLocal(Object.assign({}, out, { __dirty: false, __rev: rev })); }
+          this.setState({ saveStatus: 'saved', savedAt: out.__at, saveError: '' }); flash();
+          if (this.state.authUser && this.state.authUser.admin) {
+            this.savesSincePrune = (this.savesSincePrune || 0) + 1;
+            if (this.savesSincePrune >= 25) { this.savesSincePrune = 0; cloud.pruneHistory(); }
+          }
+        })
+        .catch(e => this.cloudSaveFailed(e, out))
+        .then(() => {
+          this.saveInFlight = null;
+          if (this.pendingWrite) { const m = !!this.pendingManual; this.pendingWrite = false; this.pendingManual = false; this.lastSnap = null; this.writeNow(m); }
+        });
+      return this.saveInFlight;
     }
     this.setState({ saveStatus: 'saved', savedAt: out.__at }); flash();
     return Promise.resolve();
+  }
+  writeLocal(out) {
+    try { localStorage.setItem(this.dataKey(), JSON.stringify(out)); } catch (e) { console.warn('[autosave] local', e); }
+  }
+  // the cloud refused our save: never overwrite blindly, show what happened and let the user decide
+  cloudSaveFailed(e, out) {
+    if (e && e.code === 'rev-conflict' && e.remote && e.remote.payload) {
+      console.warn('[autosave] rev conflict — applying the newer cloud version');
+      const who = this.cloudUserName(e.remote.updatedBy), when = this.fmtWhen(e.remote.__at);
+      this.applyRemote(e.remote.payload, false, e.remote.rev);
+      this.notice('Updated from the cloud', who + ' saved at ' + when + ' while you were editing. The cloud version was loaded — please check that your last change is still there.');
+      return;
+    }
+    if (e && e.code === 'wipe-guard') {
+      this.setState({ saveStatus: 'error', saveError: 'Save blocked: it would remove ' + (e.curRows - e.newRows) + ' projects', wipeGuard: { curRows: e.curRows, newRows: e.newRows, remote: e.remote, out } });
+      return;
+    }
+    console.error('[autosave] cloud failed', e);
+    this.setState({ saveStatus: 'error', saveError: (e && e.message) || 'cloud error' });
   }
   componentDidUpdate() {
     if (this.measure) this.measure();
@@ -4642,24 +4872,151 @@ class Component extends DCLogic {
     this.connecting = true;
     try {
       const remote = await cloud.loadDoc();
-      const localAt = this.state.savedAt;
-      const localNewer = remote && remote.payload && localAt && remote.__at && remote.__at < localAt;
-      if (remote && remote.payload && !localNewer) this.applyRemote(remote.payload, true);
-      else { this.lastSnap = null; this.writeNow(false); } // first login ever, or this device holds newer edits: push them up
-      if (this.unsubRemote) this.unsubRemote();
-      this.unsubRemote = cloud.onRemote((d) => {
-        if (!d || !d.payload) return;
-        if (this.state.saveStatus === 'saving') return;              // our own write is in flight
-        if (d.__at && this.state.savedAt && d.__at <= this.state.savedAt) return; // not newer than ours
-        this.applyRemote(d.payload, false);
-      });
+      const decision = this.syncDecision(remote);
+      if (decision === 'push') {
+        // the cloud has never been written: this is the first import ever
+        this.rev = remote && typeof remote.rev === 'number' ? remote.rev : 0;
+        this.setState({ cloudOn: true });
+        this.forceNext = true; this.forceReason = 'first import';
+        this.lastSnap = null; await this.writeNow(false);
+      } else if (decision === 'fast-forward') {
+        // this device edited the exact version the cloud still holds (e.g. offline): plain save, rev-checked
+        this.rev = typeof remote.rev === 'number' ? remote.rev : 0;
+        this.setState({ cloudOn: true });
+        this.forceReason = 'edits made offline';
+        this.lastSnap = null; await this.writeNow(false);
+      } else if (decision === 'ask') {
+        // both sides have something: this device was edited after the last cloud save. Never guess.
+        this.pendingRemote = remote;
+        this.setState({ syncChoice: {
+          localAt: this.fmtWhen(this.state.savedAt), localRows: (this.state.rows || []).length,
+          remoteAt: this.fmtWhen(remote.__at), remoteRows: (remote.payload.rows || []).length, remoteBy: this.cloudUserName(remote.updatedBy),
+          canKeepLocal: !!(this.state.authUser && this.state.authUser.admin)
+        } });
+        this.connecting = false;
+        return;
+      } else {
+        this.applyRemote(remote.payload, true, remote.rev);
+      }
+      this.startRemoteListener();
       this.setState({ cloudOn: true });
     } catch (e) {
       console.error('[cloud] connect failed', e);
       this.setState({ saveStatus: 'error', saveError: (e && e.message) || 'cloud error' });
     } finally { this.connecting = false; }
   }
-  applyRemote(payload, initial) {
+  // What to do at login. Pure so it can be unit-tested:
+  //   'apply' — take the cloud version (the normal case, and ALWAYS when the local copy was never edited here)
+  //   'push'  — the cloud is empty: first import
+  //   'ask'   — this device has edits newer than the cloud: let the user choose
+  //   'fast-forward' — this device has unsaved edits made on top of the version the cloud still holds
+  syncDecision(remote) {
+    if (!remote || !remote.payload) return 'push';
+    if (this.localSeed || !this.localDirty) return 'apply';
+    const remoteRev = typeof remote.rev === 'number' ? remote.rev : 0;
+    if (typeof this.localRev === 'number' && this.localRev === remoteRev) return 'fast-forward';
+    if ((this.state.savedAt || '') === (remote.__at || '')) return 'apply'; // the cloud already holds this device's version
+    return 'ask';
+  }
+  startRemoteListener() {
+    const cloud = this.cloud(); if (!cloud) return;
+    if (this.unsubRemote) this.unsubRemote();
+    this.unsubRemote = cloud.onRemote((d) => {
+      if (!d || !d.payload) return;
+      if (this.state.saveStatus === 'saving') return;              // our own write is in flight
+      if (typeof d.rev === 'number' && typeof this.rev === 'number' && d.rev <= this.rev) return; // already have it
+      if (typeof d.rev !== 'number' && d.__at && this.state.savedAt && d.__at <= this.state.savedAt) return;
+      this.applyRemote(d.payload, false, d.rev);
+    });
+  }
+  resolveSyncChoice(useLocal) {
+    if (useLocal === 'export') return this.exportBackup();
+    const remote = this.pendingRemote; this.pendingRemote = null;
+    this.setState({ syncChoice: null });
+    if (!remote) return;
+    this.rev = typeof remote.rev === 'number' ? remote.rev : 0;
+    if (useLocal && this.state.authUser && this.state.authUser.admin) {
+      this.setState({ cloudOn: true });
+      this.forceNext = true; this.forceReason = 'device version kept by ' + this.state.authUser.login;
+      this.lastSnap = null; this.writeNow(false);
+    } else {
+      this.applyRemote(remote.payload, true, remote.rev);
+      this.setState({ cloudOn: true });
+    }
+    this.startRemoteListener();
+  }
+  resolveWipeGuard(confirm) {
+    const g = this.state.wipeGuard; this.setState({ wipeGuard: null });
+    if (!g) return;
+    if (confirm && this.state.authUser && this.state.authUser.admin) {
+      this.forceNext = true; this.forceReason = 'removal confirmed by ' + this.state.authUser.login;
+      this.lastSnap = null; this.writeNow(false);
+    } else if (g.remote && g.remote.payload) {
+      this.applyRemote(g.remote.payload, false, g.remote.rev);
+      this.notice('Change cancelled', 'The cloud version was reloaded. Nothing was removed.');
+    }
+  }
+  async loadAdminPanels() {
+    const cloud = this.cloud(); const u = this.state.authUser;
+    if (!cloud || !u || !u.admin || !this.state.cloudOn) return;
+    this.setState({ adminPanelStatus: 'Loading…' });
+    try {
+      const [hist, backups] = await Promise.all([cloud.listHistory(60), cloud.listBackups(30)]);
+      this.setState({ historyList: hist, backupList: backups, adminPanelStatus: backups.length ? '' : 'No daily backup yet. The GitHub job writes the first one at the next 3 am run (or run it by hand in GitHub → Actions).' });
+    } catch (e) { this.setState({ adminPanelStatus: 'Could not load: ' + ((e && e.message) || e) }); }
+  }
+  async restoreHistory(h) {
+    const cloud = this.cloud(); if (!cloud) return;
+    if (!window.confirm('Restore the version saved ' + this.fmtWhen(h.__at) + ' by ' + this.cloudUserName(h.updatedBy) + ' (' + h.rows + ' projects)?\n\nThis REPLACES the current data for all users. The current version is kept in the history.')) return;
+    try {
+      const v = await cloud.loadHistory(h.id);
+      if (!v || !v.payload) return this.notice('Not found', 'That version is no longer in the history.');
+      this.forceNext = true; this.forceReason = 'restored version ' + h.id + ' by ' + (this.state.authUser ? this.state.authUser.login : '?');
+      this.lastSnap = null; // make sure the restore itself is saved (and consumes the forced flag)
+      const payload = v.payload;
+      const patch = { settings: false };
+      this.persistKeys().forEach(k => { if (payload[k] !== undefined) patch[k] = payload[k]; });
+      if (Array.isArray(patch.rows)) patch.rows = this.cleanRows(patch.rows);
+      if (!patch.sets) patch.sets = this.state.sets;
+      this.migrate(patch);
+      this.setState(patch, () => this.notice('Version restored', (patch.rows || []).length + ' projects loaded and being saved to the cloud.', true));
+    } catch (e) { this.notice('Restore failed', (e && e.message) || String(e)); }
+  }
+  b64bytes(b64) { const bin = atob(b64); const out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+  saveBlob(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 800); }
+  async backupFiles(b) {
+    if (b.jsonGz || b.xlsx || b.json) return b;
+    const c = this.cloud(); if (!c) return b;
+    const f = await c.loadBackupFiles(b.id);
+    return Object.assign({}, b, f || {});
+  }
+  async downloadBackupJson(b0) {
+    try {
+      const b = await this.backupFiles(b0);
+      if (b.json) return this.saveBlob(new Blob([b.json], { type: 'application/json' }), 'timplex-crm-backup-' + b.id + '.json');
+      if (!b.jsonGz) return this.notice('Not available', 'This backup has no JSON stored in the cloud. Download it from the GitHub repository.');
+      if (typeof DecompressionStream === 'undefined') return this.notice('Browser too old', 'This browser cannot unpack the backup. Use Chrome/Edge, or download it from GitHub.');
+      const ds = new Blob([this.b64bytes(b.jsonGz)]).stream().pipeThrough(new DecompressionStream('gzip'));
+      const buf = await new Response(ds).arrayBuffer();
+      this.saveBlob(new Blob([buf], { type: 'application/json' }), 'timplex-crm-backup-' + b.id + '.json');
+    } catch (e) { this.notice('Download failed', (e && e.message) || String(e)); }
+  }
+  async downloadBackupXlsx(b0) {
+    let b = b0;
+    try { b = await this.backupFiles(b0); } catch (e) { return this.notice('Download failed', (e && e.message) || String(e)); }
+    if (!b.xlsx) return this.notice('Not available', 'The Excel file of this day is only in the GitHub repository (too large for the cloud copy).');
+    try { this.saveBlob(new Blob([this.b64bytes(b.xlsx)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'timplex-crm-leads-bids-' + b.id + '.xlsx'); }
+    catch (e) { this.notice('Download failed', (e && e.message) || String(e)); }
+  }
+  cloudUserName(email) { const u = this.users().find(x => (x.login + '@timplex.com') === email); return u ? u.name : (email && email !== '?' ? email : 'someone'); }
+  fmtWhen(iso) { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'unknown time'; }
+  applyRemote(payload, initial, rev) {
+    this.rev = typeof rev === 'number' ? rev : 0;
+    const hadEdits = !!this.localDirty && !initial;
+    clearTimeout(this.saveTimer); this.saveTimer = null;   // a pending autosave would only write this same version back
+    if (initial) { this.forceNext = false; this.forceReason = ''; }
+    this.localDirty = false; this.localSeed = false;
+    if (hadEdits) this.notice('Updated from the cloud', 'A newer version was saved by someone else while this device had unsaved changes. The cloud version was loaded — please check your last change.');
     const patch = {};
     this.persistKeys().forEach(k => { if (payload[k] !== undefined) patch[k] = payload[k]; });
     if (Array.isArray(patch.rows) && !patch.rows.length) delete patch.rows;
@@ -4674,8 +5031,8 @@ class Component extends DCLogic {
     this.setState(patch, () => {
       this.muteSave = false;
       this.lastSnap = this.persistKeys().map(k => this.state[k]);
-      if (migrated) { this.lastSnap = null; this.scheduleSave(); }
-      try { localStorage.setItem(this.dataKey(), JSON.stringify(Object.assign({ __at: patch.savedAt }, payload))); } catch (e) {}
+      if (migrated) { this.lastSnap = null; this.migrationSave = true; this.forceReason = 'data format upgrade'; this.scheduleSave(); }
+      this.writeLocal(Object.assign({ __at: patch.savedAt, __dirty: false, __seed: false, __rev: this.rev }, payload));
     });
   }
 
@@ -5160,7 +5517,9 @@ class Component extends DCLogic {
         let data; try { data = JSON.parse(String(rd.result)); } catch (e) { return this.notice('Invalid file', 'This is not a valid Timplex backup file.'); }
         if (!data || !Array.isArray(data.rows) || !Array.isArray(data.contacts)) return this.notice('Invalid file', 'This backup has no projects or contacts.');
         const n = data.rows.length, c = data.contacts.length;
-        if (!window.confirm('Restore ' + n + ' projects and ' + c + ' contacts?\n\nThis REPLACES the current data for all users.')) return;
+        if (!window.confirm('Restore ' + n + ' projects and ' + c + ' contacts?\n\nThis REPLACES the current data for all users. The current version is kept in the cloud history.')) return;
+        this.forceNext = true; this.forceReason = 'backup restored by ' + (this.state.authUser ? this.state.authUser.login : '?');
+        this.lastSnap = null;
         const patch = { settings: false };
         ['rows', 'contacts', 'sets', 'contactCols', 'boardColW', 'stageOrder', 'holidays', 'memos'].forEach(k => { if (data[k] !== undefined) patch[k] = data[k]; });
         if (!patch.sets) patch.sets = this.state.sets;
@@ -5174,17 +5533,24 @@ class Component extends DCLogic {
 
   // sign out only after the last edit is safely in the cloud
   async doSignOut() {
-    if (this.unsubRemote) { this.unsubRemote(); this.unsubRemote = null; }
     const c = this.cloud();
+    const pending = !!this.saveTimer || !!this.localDirty || !!this.saveInFlight;
     clearTimeout(this.saveTimer); this.saveTimer = null;
-    const out = { __at: new Date().toISOString() };
+    if (this.saveInFlight) { try { await this.saveInFlight; } catch (e) {} }
+    const out = { __at: new Date().toISOString(), __dirty: !!this.localDirty, __seed: !!this.localSeed, __rev: typeof this.rev === 'number' ? this.rev : null };
     this.persistKeys().forEach(k => { out[k] = this.state[k]; });
-    try { localStorage.setItem(this.dataKey(), JSON.stringify(out)); } catch (e) {}
-    if (c && this.state.authUser) {
+    this.writeLocal(out);
+    if (c && this.state.authUser && this.state.cloudOn && pending && this.localDirty) {
       this.setState({ saveStatus: 'saving' });
-      try { await c.saveDoc(out); }
-      catch (e) { console.error('[sign-out save]', e); this.setState({ saveStatus: 'error', saveError: (e && e.message) || 'cloud error' }); return this.notice('Save failed', 'Your last change could not be saved, so you were not signed out: ' + ((e && e.message) || 'cloud error')); }
+      try { this.rev = await c.saveDoc(out, { expectRev: this.rev, reason: 'sign-out' }); this.localDirty = false; this.writeLocal(Object.assign({}, out, { __dirty: false, __rev: this.rev })); }
+      catch (e) {
+        console.error('[sign-out save]', e);
+        this.cloudSaveFailed(e, out);   // rev conflict / wipe guard: handled with the usual dialogs, listener stays on
+        if (!(e && (e.code === 'rev-conflict' || e.code === 'wipe-guard'))) this.notice('Save failed', 'Your last change could not be saved, so you were not signed out: ' + ((e && e.message) || 'cloud error'));
+        return;
+      }
     }
+    if (this.unsubRemote) { this.unsubRemote(); this.unsubRemote = null; }
     if (c) { try { await c.logout(); } catch (e) {} }
     this.muteSave = true;
     this.setState({ authUser: null, loginUser: '', loginPass: '', loginError: '', cloudOn: false, saveStatus: 'saved', savedAt: out.__at, settings: false, pdfView: null, notice: null },
@@ -6095,7 +6461,7 @@ class Component extends DCLogic {
       onPickerQuery: e => this.setState({ pickerQuery: e.target.value }),
       closePicker: () => this.setState({ picker: null }),
       settingsOpen: st.settings,
-      openSettings: () => this.setState({ settings: true, picker: null }),
+      openSettings: () => { this.setState({ settings: true, picker: null }); this.loadAdminPanels(); },
       closeSettings: () => this.setState({ settings: false }),
       search: st.search, onSearch: e => this.setState({ search: e.target.value }),
       totalRows: st.rows.length,
@@ -6155,6 +6521,27 @@ class Component extends DCLogic {
       dupeName: st.dupeAlert ? st.dupeAlert.name : '',
       closeDupe: () => this.setState({ dupeAlert: null }),
       hasNotice: !!st.notice, noticeTitle: st.notice ? st.notice.title : '', noticeText: st.notice ? st.notice.text : '', closeNotice: () => this.setState({ notice: null }),
+      hasSyncChoice: !!st.syncChoice,
+      syncRemoteRows: st.syncChoice ? st.syncChoice.remoteRows : 0, syncRemoteAt: st.syncChoice ? st.syncChoice.remoteAt : '', syncRemoteBy: st.syncChoice ? st.syncChoice.remoteBy : '',
+      syncLocalRows: st.syncChoice ? st.syncChoice.localRows : 0, syncLocalAt: st.syncChoice ? st.syncChoice.localAt : '',
+      syncCanKeepLocal: !!(st.syncChoice && st.syncChoice.canKeepLocal), syncLocalLocked: !!(st.syncChoice && !st.syncChoice.canKeepLocal),
+      syncUseCloud: () => this.resolveSyncChoice(false), syncUseLocal: () => this.resolveSyncChoice(true), syncExportLocal: () => this.resolveSyncChoice('export'),
+      hasWipeGuard: !!st.wipeGuard,
+      wipeText: st.wipeGuard ? ('This change would remove ' + (st.wipeGuard.curRows - st.wipeGuard.newRows) + ' of the ' + st.wipeGuard.curRows + ' projects stored in the cloud (this device has ' + st.wipeGuard.newRows + '). To protect the data, the cloud refused it.' + (st.authUser && st.authUser.admin ? '' : ' Ask the administrator if this removal is intended.')) : '',
+      wipeCanConfirm: !!(st.wipeGuard && st.authUser && st.authUser.admin),
+      wipeCancel: () => this.resolveWipeGuard(false), wipeConfirm: () => this.resolveWipeGuard(true),
+      adminPanelStatus: st.adminPanelStatus || '',
+      hasBackups: !!(st.backupList && st.backupList.length), backupRows: (st.backupList || []).map(b => ({
+        date: b.id, meta: (b.counts ? (b.counts.projects + ' projects · ' + b.counts.contacts + ' contacts · ' + (b.counts.poFiles || 0) + ' POs') : '') + (b.xlsxTooBig ? ' · Excel only on GitHub' : ''),
+        dlJson: () => this.downloadBackupJson(b), dlXlsx: () => this.downloadBackupXlsx(b),
+        xlsxStyle: 'background:#fff;border:1px solid ' + (b.xlsxTooBig ? '#e3e6ef;color:#b8bcc8' : '#00854d;color:#00854d') + ';border-radius:7px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer'
+      })),
+      hasHistory: !!(st.historyList && st.historyList.length), noHistory: !!(st.historyList && !st.historyList.length),
+      historyRows: (st.historyList || []).map(h => ({
+        when: this.fmtWhen(h.__at), meta: (h.rows != null ? h.rows + ' projects · ' + h.contacts + ' contacts · ' : '') + 'saved by ' + this.cloudUserName(h.updatedBy) + (h.reason && h.reason !== 'autosave' ? ' · ' + h.reason : ''),
+        restore: () => this.restoreHistory(h)
+      })),
+      reloadAdminPanels: () => this.loadAdminPanels(),
       noticeIcon: st.notice && st.notice.ok ? '✓' : '!',
       noticeIconStyle: 'width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:800;margin:0 auto 14px;background:' + (st.notice && st.notice.ok ? '#e6f7ee;color:#00854d' : '#ffeaee;color:#e2445c'),
       hasPdfView: !!st.pdfView, pdfName: st.pdfView ? st.pdfView.name : '', pdfMeta: st.pdfView ? st.pdfView.meta : '', pdfUrl: st.pdfView ? st.pdfView.url : '',

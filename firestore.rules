@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.token.email in
+        ['elisson@timplex.com', 'paul@timplex.com', 'matheus@timplex.com', 'daniel@timplex.com'];
+    }
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'elisson@timplex.com';
+    }
+    function revOf(d) {
+      return ('rev' in d && d.rev is int) ? d.rev : 0;
+    }
+    function rowsOf(d) {
+      return ('payload' in d && 'rows' in d.payload && d.payload.rows is list) ? d.payload.rows.size() : 0;
+    }
+
+    // The whole CRM lives in this one document.
+    match /workspaces/timplex {
+      allow read: if signedIn();
+      allow create: if signedIn();
+      // 1) Every update must carry the next version number (rev + 1). The app's transaction always
+      //    does this; the old app version (the one that caused the 2026-10-23 loss) cannot write any more.
+      // 2) Server-side wipe guard, independent of any client bug: an update may not remove more than
+      //    5 projects (or 10%, whichever is larger) unless the administrator explicitly forces it.
+      allow update: if signedIn()
+        && request.resource.data.rev == revOf(resource.data) + 1
+        && (
+          (('force' in request.resource.data) && request.resource.data.force == true && isAdmin())
+          || rowsOf(request.resource.data) * 10 >= rowsOf(resource.data) * 9
+          || rowsOf(request.resource.data) >= rowsOf(resource.data) - 5
+        );
+      allow delete: if false;
+
+      // Automatic version history (full copies) — written by every save, restored by the admin.
+      match /history/{version} {
+        allow read: if isAdmin();
+        allow create, update: if signedIn();
+        allow delete: if isAdmin();
+      }
+      match /historyIndex/{version} {
+        allow read: if signedIn();
+        allow create, update: if signedIn();
+        allow delete: if isAdmin();
+      }
+    }
+
+    // PO attachments (PDF chunks).
+    match /poFiles/{file} {
+      allow read, write: if signedIn();
+      match /chunks/{chunk} {
+        allow read, write: if signedIn();
+      }
+    }
+
+    // Daily backups written by the GitHub Actions job (Admin SDK bypasses these rules).
+    // Only the administrator can read them; nobody can write them from the app.
+    match /backups/{day} {
+      allow read: if isAdmin();
+      allow write: if false;
+      match /files/{file} {
+        allow read: if isAdmin();
+        allow write: if false;
+      }
+    }
+  }
+}
