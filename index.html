@@ -42,7 +42,7 @@ const cfg = window.TIMPLEX_FIREBASE || {};
 const placeholder = /COLE|AQUI|YOUR_|xxxx/i.test(String(cfg.apiKey || '') + String(cfg.appId || '') + String(cfg.projectId || ''));
 const enabled = !!(cfg.apiKey && cfg.projectId && cfg.appId && !placeholder);
 
-const USERS = { elisson: "elisson@timplex.com", paul: "paul@timplex.com", matheus: "matheus@timplex.com", daniel: "daniel@timplex.com" };
+const USERS = { elisson: "elisson@timplex.com", paul: "paul@timplex.com", matheus: "matheus@timplex.com", daniel: "daniel@mewoodconstruction.com", doug: "djslate@timplex.com", charley: "charley@mewoodconstruction.com" };
 
 let auth = null, db = null, DOC = null, HIST = null, HIDX = null, BACKUPS = null, initError = null;
 if (enabled) {
@@ -3230,6 +3230,13 @@ input,button,textarea{font-family:inherit}
   <sc-if value="{{ pickerOpen }}">
     <div onClick="{{ closePicker }}" style="position:fixed;inset:0;z-index:90"></div>
     <div style="{{ pickerStyle }}">
+      <sc-if value="{{ picker.isContacts }}">
+        <div style="display:flex;align-items:center;gap:8px;border:1.5px solid #0073ea;border-radius:8px;padding:7px 10px;margin-bottom:6px;background:#fff">
+          <span style="display:inline-block;width:11px;height:11px;border:2px solid #6b7185;border-radius:50%;flex:none"></span>
+          <input data-picker-search="1" value="{{ pickerQuery }}" onChange="{{ onPickerQuery }}" onKeyDown="{{ picker.keyDown }}" autoFocus="{{ true }}" placeholder="Search name, company or e-mail" style="border:0;outline:0;font-size:13px;flex:1;min-width:0;color:#1d2233;background:transparent">
+        </div>
+        <div style="font-size:11px;color:#9699a6;margin:0 2px 8px">{{ picker.countText }}</div>
+      </sc-if>
       <sc-if value="{{ picker.multi }}">
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px">
           <sc-for list="{{ picker.selected }}" as="s" hint-placeholder-count="1">
@@ -3239,11 +3246,14 @@ input,button,textarea{font-family:inherit}
       </sc-if>
       <div style="{{ picker.gridStyle }}">
         <sc-for list="{{ picker.options }}" as="o" hint-placeholder-count="6">
-          <button onClick="{{ o.pick }}" style="{{ o.style }}" style-hover="filter:brightness(1.07);transform:translateY(-1px)">{{ o.name }}</button>
+          <button data-hi="{{ o.hi }}" onClick="{{ o.pick }}" onMouseEnter="{{ o.hover }}" style="{{ o.style }}" style-hover="filter:brightness(1.07);transform:translateY(-1px)">{{ o.name }}<span style="{{ o.subStyle }}">{{ o.sub }}</span></button>
         </sc-for>
       </div>
+      <sc-if value="{{ picker.noMatch }}">
+        <div style="padding:10px 4px 2px;font-size:12.5px;color:#6b7185">No contact matches “{{ pickerQuery }}”. Press <b>Enter</b> to add it as a new contact.</div>
+      </sc-if>
       <sc-if value="{{ picker.isContacts }}">
-        <button onClick="{{ picker.addNew }}" style="margin-top:8px;width:100%;border:1px dashed #cfd4e0;background:#f7f8fc;color:#0073ea;border-radius:8px;padding:9px;font-size:12.5px;font-weight:700;cursor:pointer" style-hover="background:#eaf1ff;border-color:#0073ea">+ Add new contact</button>
+        <button onClick="{{ picker.addNew }}" title="{{ picker.addNewTitle }}" style="margin-top:8px;width:100%;border:1px dashed #cfd4e0;background:#f7f8fc;color:#0073ea;border-radius:8px;padding:9px;font-size:12.5px;font-weight:700;cursor:pointer" style-hover="background:#eaf1ff;border-color:#0073ea">+ Add new contact</button>
       </sc-if>
     </div>
   </sc-if>
@@ -5011,7 +5021,31 @@ class Component extends DCLogic {
     try { this.saveBlob(new Blob([this.b64bytes(b.xlsx)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'timplex-crm-leads-bids-' + b.id + '.xlsx'); }
     catch (e) { this.notice('Download failed', (e && e.message) || String(e)); }
   }
-  cloudUserName(email) { const u = this.users().find(x => (x.login + '@timplex.com') === email); return u ? u.name : (email && email !== '?' ? email : 'someone'); }
+  // Contact search: every typed word must appear in name, company or e-mail (accents and case ignored).
+  // Order: name starts with the text, then a word of the name starts with it, then anything else; A–Z inside each group.
+  searchContacts(list, q) {
+    const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const byName = (a, b) => a.name.localeCompare(b.name);
+    if (!q) return list.slice().sort(byName);
+    const nq = norm(q), words = nq.split(/\s+/).filter(Boolean);
+    const rank = (o) => {
+      const n = norm(o.name);
+      if (n.startsWith(nq)) return 0;
+      if (n.split(/[\s\-.,&/]+/).some(w => w.startsWith(words[0]))) return 1;
+      return 2;
+    };
+    return list
+      .filter(o => { const h = norm(o.name + ' ' + (o.company || '') + ' ' + (o.email || '')); return words.every(w => h.includes(w)); })
+      .map(o => ({ o, r: rank(o) }))
+      .sort((a, b) => a.r - b.r || byName(a.o, b.o))
+      .map(x => x.o);
+  }
+  cloudUserName(email) {
+    const c = window.TimplexCloud;
+    const login = c && c.usernameFor ? c.usernameFor(email) : null;
+    const u = login ? this.users().find(x => x.login === login) : null;
+    return u ? u.name : (email && email !== '?' ? email : 'someone');
+  }
   fmtWhen(iso) { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'unknown time'; }
   applyRemote(payload, initial, rev) {
     this.rev = typeof rev === 'number' ? rev : 0;
@@ -5303,7 +5337,9 @@ class Component extends DCLogic {
       { login: 'elisson', name: 'Elisson Nunes', initials: 'EN', role: 'admin', admin: true, active: true },
       { login: 'paul', name: 'Paul Quasius', initials: 'PQ', role: 'member', admin: false, active: true },
       { login: 'matheus', name: 'Matheus Monteiro', initials: 'MM', role: 'member', admin: false, active: true },
-      { login: 'daniel', name: 'Daniel Correa', initials: 'DC', role: 'member', admin: false, active: true }
+      { login: 'daniel', name: 'Daniel Correa', initials: 'DC', role: 'member', admin: false, active: true },
+      { login: 'doug', name: 'Doug Slate', initials: 'DS', role: 'member', admin: false, active: true },
+      { login: 'charley', name: 'Charley Wood', initials: 'CW', role: 'member', admin: false, active: true }
     ];
   }
 
@@ -5311,7 +5347,10 @@ class Component extends DCLogic {
     return [
       { initials: 'PQ', name: 'Paul Quasius', color: '#a25ddc' },
       { initials: 'EN', name: 'Elisson Nunes', color: '#c4373a' },
-      { initials: 'M', name: 'Matheus Monteiro', color: '#0b6b4f' }
+      { initials: 'M', name: 'Matheus Monteiro', color: '#0b6b4f' },
+      { initials: 'DC', name: 'Daniel Correa', color: '#bb3354' },
+      { initials: 'DS', name: 'Doug Slate', color: '#e8833a' },
+      { initials: 'CW', name: 'Charley Wood', color: '#0086c0' }
     ];
   }
 
@@ -5740,7 +5779,8 @@ class Component extends DCLogic {
               if ((r.contacts || []).length > 1) cell.chips.push({ text: '+' + (r.contacts.length - 1), style: 'display:inline-flex;background:#f3f5fb;color:#6b7185;font-size:11px;font-weight:700;border-radius:6px;padding:4px 7px' });
               cell.onClick = (e) => {
                 const b = e.currentTarget.getBoundingClientRect();
-                this.setState({ picker: { rowId: r.id, coll: 'rows', col: 'contacts', kind: 'contacts', multi: false, x: Math.min(b.left, window.innerWidth - 300), y: Math.min(b.bottom + 6, window.innerHeight - 340) }, pickerQuery: '' });
+                this.setState({ picker: { rowId: r.id, coll: 'rows', col: 'contacts', kind: 'contacts', multi: false, x: Math.max(8, Math.min(b.left, window.innerWidth - 350)), y: Math.max(8, Math.min(b.bottom + 6, window.innerHeight - 440)) }, pickerQuery: '', pickerHi: 0 },
+                  () => setTimeout(() => { const el = document.querySelector('[data-picker-search]'); if (el) el.focus(); }, 30));
               };
             } else if (c.type === 'check') {
               cell.isCheck = true;
@@ -5804,33 +5844,64 @@ class Component extends DCLogic {
       const row = st[p.coll || 'rows'].find(r => r.id === p.rowId);
       const isContacts = p.kind === 'contacts';
       const list = isContacts
-        ? st.contacts.filter(c => !c.archived).map(c => ({ name: String(c.name).toUpperCase(), color: '#e9edf8' }))
+        ? st.contacts.filter(c => !c.archived).map(c => ({ name: String(c.name).toUpperCase(), company: String(c.company || '').toUpperCase(), email: String(c.email || ''), color: '#e9edf8' }))
         : (sets[p.set] || []);
       const setF = (k, v) => this.setField(row.id, k, v, p.coll);
-      const filtered = p.multi && st.pickerQuery ? list.filter(o => o.name.toLowerCase().includes(st.pickerQuery.toLowerCase())) : list;
-      pickerStyle = 'position:fixed;z-index:100;left:' + p.x + 'px;top:' + p.y + 'px;width:' + (p.multi ? 240 : 330) + 'px;background:#fff;border-radius:12px;box-shadow:0 14px 42px rgba(15,20,40,.24);padding:12px;animation:popIn .16s both';
+      const q = String(st.pickerQuery || '').trim();
+      let filtered;
+      if (isContacts) filtered = this.searchContacts(list, q);
+      else filtered = p.multi && q ? list.filter(o => o.name.toLowerCase().includes(q.toLowerCase())) : list;
+      const hi = isContacts ? Math.max(0, Math.min(st.pickerHi || 0, filtered.length - 1)) : -1;
+      const current = isContacts ? (row[p.col] || [])[0] : null;
+      const choose = (name) => { setF(p.col, (row[p.col] || [])[0] === name ? [] : [name]); this.setState({ picker: null, pickerQuery: '' }); };
+      const addNewContact = () => this.setState({
+        picker: null, pickerQuery: '',
+        contactForm: { name: q.toUpperCase(), company: '', email: '', phone: '', title: '', type: '', comments: '', attachTo: row.id }
+      });
+      pickerStyle = 'position:fixed;z-index:100;left:' + p.x + 'px;top:' + p.y + 'px;width:' + (p.multi ? 240 : isContacts ? 340 : 330) + 'px;background:#fff;border-radius:12px;box-shadow:0 14px 42px rgba(15,20,40,.24);padding:12px;animation:popIn .16s both';
       const listy = p.multi || isContacts;
       picker = {
         multi: listy,
         isContacts: isContacts,
-        addNew: () => this.setState({
-          picker: null,
-          contactForm: { name: '', company: '', email: '', phone: '', title: '', type: '', comments: '', attachTo: row.id }
-        }),
-        gridStyle: listy ? 'display:flex;flex-direction:column;gap:4px;max-height:230px;overflow:auto' : 'display:grid;grid-template-columns:1fr 1fr;gap:8px',
+        countText: isContacts ? (q ? filtered.length + ' of ' + list.length + ' contacts' : list.length + ' contacts · type to search · ↑ ↓ Enter') : '',
+        noMatch: isContacts && !!q && !filtered.length,
+        addNewTitle: isContacts && q ? 'Create “' + q.toUpperCase() + '”' : '',
+        addNew: addNewContact,
+        keyDown: (e) => {
+          if (!isContacts) return;
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            const n = Math.max(0, Math.min(filtered.length - 1, hi + (e.key === 'ArrowDown' ? 1 : -1)));
+            this.setState({ pickerHi: n }, () => { const el = document.querySelector('[data-hi="1"]'); if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' }); });
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (filtered.length) choose(filtered[hi].name);
+            else if (q) addNewContact();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            this.setState({ picker: null, pickerQuery: '' });
+          }
+        },
+        gridStyle: listy ? 'display:flex;flex-direction:column;gap:2px;max-height:' + (isContacts ? 300 : 230) + 'px;overflow:auto' : 'display:grid;grid-template-columns:1fr 1fr;gap:8px',
         selected: listy ? (row[p.col] || []).map(n => {
           const o = isContacts ? { color: '#e9edf8' } : (this.find(p.set, n) || { color: '#d5f2f5' });
           return { text: n, style: this.pill(o.color, 'cursor:pointer;font-size:11px;'), remove: () => setF(p.col, row[p.col].filter(x => x !== n)) };
         }) : [],
-        options: filtered.map(o => ({
-          name: o.name,
-          style: listy
+        options: filtered.map((o, i) => ({
+          name: (isContacts && o.name === current ? '✓ ' : '') + o.name,
+          sub: isContacts ? [o.company, o.email].filter(Boolean).join(' · ') : '',
+          subStyle: isContacts && (o.company || o.email) ? 'display:block;font-size:11px;font-weight:500;color:#8a90a4;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis' : 'display:none',
+          hi: isContacts && i === hi ? '1' : '0',
+          hover: isContacts ? () => { if ((st.pickerHi || 0) !== i) this.setState({ pickerHi: i }); } : undefined,
+          style: isContacts
+            ? 'text-align:left;border:0;padding:7px 10px;border-radius:8px;font-size:12.5px;cursor:pointer;transition:background .1s;width:100%;' +
+              (i === hi ? 'background:#eaf1ff;' : 'background:transparent;') + (o.name === current ? 'color:#0073ea;font-weight:700' : 'color:#3c4460;font-weight:500')
+            : listy
             ? 'text-align:left;background:transparent;border:0;padding:8px 10px;border-radius:8px;font-size:12.5px;color:#3c4460;cursor:pointer;font-weight:500;transition:all .15s'
             : 'background:' + o.color + ';color:' + this.ink(o.color) + ';border:0;padding:11px 8px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:all .15s',
           pick: () => {
             if (isContacts) {
-              setF(p.col, (row[p.col] || [])[0] === o.name ? [] : [o.name]);
-              this.setState({ picker: null });
+              choose(o.name);
             } else if (p.multi) {
               const cur = row[p.col] || [];
               setF(p.col, cur.includes(o.name) ? cur.filter(x => x !== o.name) : cur.concat(o.name));
@@ -6461,7 +6532,7 @@ class Component extends DCLogic {
         (st.saveFlash ? '#00854d' : st.saveStatus === 'saving' ? '#fdab3d' : st.saveStatus === 'error' ? '#e2445c' : 'rgba(255,255,255,.14)'),
       cycleStageFilter: () => this.setState(s => { const names = [''].concat(sets.stage.map(x => x.name)); return { stageFilter: names[(names.indexOf(s.stageFilter) + 1) % names.length] }; }),
       pickerOpen: !!p, pickerQuery: st.pickerQuery,
-      onPickerQuery: e => this.setState({ pickerQuery: e.target.value }),
+      onPickerQuery: e => this.setState({ pickerQuery: e.target.value, pickerHi: 0 }),
       closePicker: () => this.setState({ picker: null }),
       settingsOpen: st.settings,
       openSettings: () => { this.setState({ settings: true, picker: null }); this.loadAdminPanels(); },
