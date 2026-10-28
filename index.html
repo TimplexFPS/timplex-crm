@@ -30,6 +30,87 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 });
 </script>
+<script id="timplex-merge">
+// TIMPLEX CRM — three-way merge of the data document. base = the cloud version this device last
+// loaded; local = this device's current data; remote = the version now in the cloud. Every field that
+// only one side changed is kept; a field both sides changed keeps the local value and is reported.
+(function () {
+  // value equality independent of key order (Firestore returns object keys sorted, the app keeps insertion order)
+  const canon = (v) => JSON.stringify(v === undefined ? null : v, (k, val) => (val && typeof val === 'object' && !Array.isArray(val)) ? Object.keys(val).sort().reduce((o, kk) => { o[kk] = val[kk]; return o; }, {}) : val);
+  const same = (a, b) => canon(a) === canon(b);
+  // lists merged element by element, by key
+  const LISTS = { rows: 'id', contacts: 'id', holidays: 'd', contactCols: 'k' };
+  // objects of lists (sets.stage, sets.lead, …) and plain objects (memos, boardColW, collapsed): merged per key
+  const LIST_MAPS = { sets: 'id' };
+  const OBJECTS = { memos: 1, boardColW: 1, collapsed: 1 };
+  const NOTE_LISTS = { notes: 'id' };
+  const noteKey = n => (n && n.id) || (n ? String(n.at || '') + '|' + String(n.text || '') : '');
+  function mergeObject(b, l, r, path, conflicts) {
+    const out = {};
+    l = l || {}; r = r || {}; b = b || {};
+    const keys = new Set([...Object.keys(l), ...Object.keys(r)]);
+    keys.forEach(k => {
+      const bv = b[k], lv = l[k], rv = r[k];
+      if (NOTE_LISTS[k] && Array.isArray(lv) && Array.isArray(rv)) { out[k] = mergeNotes(Array.isArray(bv) ? bv : [], lv, rv); return; }
+      const lc = !same(lv, bv), rc = !same(rv, bv);
+      if (lc && rc && !same(lv, rv)) { conflicts.push(path + '.' + k); out[k] = lv; }
+      else if (lc) { if (k in l) out[k] = lv; }          // changed (or removed) here only
+      else if (rc) { if (k in r) out[k] = rv; }          // changed (or removed) elsewhere only
+      else out[k] = (k in r) ? rv : lv;
+    });
+    return out;
+  }
+  // comments: union, newest first, no duplicates (each note has its own id)
+  function mergeNotes(b, l, r) {
+    const bi = new Set(b.map(noteKey)), li = new Set(l.map(noteKey)), ri = new Set(r.map(noteKey));
+    const keep = n => n && ((li.has(noteKey(n)) && ri.has(noteKey(n))) || !bi.has(noteKey(n)));
+    const out = []; const seen = new Set();
+    l.concat(r).forEach(n => { if (!n || seen.has(noteKey(n)) || !keep(n)) return; seen.add(noteKey(n)); out.push(n); });
+    return out.sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
+  }
+  const arr = v => Array.isArray(v) ? v : [];
+  const obj = v => (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+  function mergeList(b, l, r, idKey, name, conflicts) {
+    const bm = new Map(b.map(x => [x && x[idKey], x])), lm = new Map(l.map(x => [x && x[idKey], x])), rm = new Map(r.map(x => [x && x[idKey], x]));
+    const out = [];
+    const put = (id) => {
+      const bo = bm.get(id), lo = lm.get(id), ro = rm.get(id);
+      if (lo && ro) { out.push(bo ? mergeObject(bo, lo, ro, name + '[' + id + ']', conflicts) : (same(lo, ro) ? lo : mergeObject(null, lo, ro, name + '[' + id + ']', conflicts))); return; }
+      if (lo && !ro) { if (!bo || !same(bo, lo)) { out.push(lo); if (bo) conflicts.push(name + '[' + id + '] deleted elsewhere, edited here'); } return; }
+      if (!lo && ro) { if (!bo) out.push(ro); else if (!same(bo, ro)) { out.push(ro); conflicts.push(name + '[' + id + '] deleted here, edited elsewhere'); } }
+    };
+    const done = new Set();
+    r.forEach(x => { const id = x && x[idKey]; if (done.has(id)) return; done.add(id); put(id); });
+    l.forEach(x => { const id = x && x[idKey]; if (done.has(id)) return; done.add(id); put(id); });
+    return out;
+  }
+  window.TimplexMerge = function (base, local, remote) {
+    base = base || {}; local = local || {}; remote = remote || {};
+    const conflicts = [];
+    const out = {};
+    const keys = new Set([...Object.keys(local), ...Object.keys(remote)]);
+    keys.forEach(k => {
+      if (k.startsWith('__')) return;
+      if (LISTS[k] && (Array.isArray(local[k]) || Array.isArray(remote[k]))) { out[k] = mergeList(arr(base[k]), Array.isArray(local[k]) ? local[k] : arr(base[k]), Array.isArray(remote[k]) ? remote[k] : arr(base[k]), LISTS[k], k, conflicts); return; }
+      if (LIST_MAPS[k] && (local[k] || remote[k])) {
+        // e.g. sets: { stage: [...], lead: [...] } — each list merged by id, so labels added on both sides are all kept
+        const b = obj(base[k]), l = obj(local[k]), r = obj(remote[k]); const o = {};
+        new Set([...Object.keys(l), ...Object.keys(r)]).forEach(n => {
+          if (Array.isArray(l[n]) || Array.isArray(r[n])) o[n] = mergeList(arr(b[n]), Array.isArray(l[n]) ? l[n] : arr(b[n]), Array.isArray(r[n]) ? r[n] : arr(b[n]), LIST_MAPS[k], k + '.' + n, conflicts);
+          else { const m = mergeObject({ v: b[n] }, { v: l[n] }, { v: r[n] }, k + '.' + n, conflicts); if ('v' in m) o[n] = m.v; }
+        });
+        out[k] = o; return;
+      }
+      if (OBJECTS[k] && (local[k] || remote[k])) { out[k] = mergeObject(obj(base[k]), obj(local[k]), obj(remote[k]), k, conflicts); return; }
+      const lc = !same(local[k], base[k]), rc = !same(remote[k], base[k]);
+      if (lc && rc && !same(local[k], remote[k])) { conflicts.push(k); out[k] = local[k]; }
+      else if (lc) out[k] = local[k];
+      else out[k] = (k in remote) ? remote[k] : local[k];
+    });
+    return { payload: out, conflicts };
+  };
+})();
+</script>
 <script type="module">
 // TIMPLEX CRM — cloud layer (Firebase Auth + Firestore; PDFs stored as base64 chunks in Firestore)
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
@@ -74,10 +155,11 @@ function syncError(code, remote, extra) {
 function friendly(e) {
   const code = (e && e.code) || "";
   if (code === "rev-conflict" || code === "wipe-guard") return e;
-  if (/permission-denied/.test(code)) return new Error("The cloud refused this save (rules). If you removed many projects, ask the administrator; otherwise reload the page.");
-  if (/unavailable|network/.test(code)) return new Error("No connection to the cloud — check your internet.");
-  if (/unauthenticated/.test(code)) return new Error("Session expired — sign in again.");
-  if (/resource-exhausted/.test(code)) return new Error("Firestore free quota reached for today.");
+  const mk = (msg) => { const out = new Error(msg); out.code = code; return out; };
+  if (/permission-denied/.test(code)) return mk("The cloud refused this save (rules). If you removed many projects, ask the administrator; otherwise reload the page.");
+  if (/unavailable|network/.test(code)) return mk("No connection to the cloud — check your internet.");
+  if (/unauthenticated/.test(code)) return mk("Session expired — sign in again.");
+  if (/resource-exhausted/.test(code)) return mk("Firestore free quota reached for today.");
   return e instanceof Error ? e : new Error(String((e && e.message) || e));
 }
 
@@ -180,7 +262,7 @@ const cloud = {
 
   // PDF -> base64 -> chunks of 700 KB (Firestore documents max 1 MiB). Metadata is written LAST,
   // so a file only "exists" once every chunk is safely stored.
-  async uploadPo(projectNumber, file, onProgress) {
+  async uploadPo(projectNumber, file, onProgress, extra) {
     const buf = new Uint8Array(await file.arrayBuffer());
     let bin = ""; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
     const b64 = btoa(bin);
@@ -191,7 +273,7 @@ const cloud = {
         await setDoc(doc(db, "poFiles", ref.id, "chunks", String(i)), { d: b64.slice(i * size, (i + 1) * size) });
         if (onProgress) onProgress(i + 1, chunks + 1);
       }
-      await setDoc(ref, { projectNumber: String(projectNumber), name: file.name, bytes: file.size, chunks, by: cloud.currentEmail() || "?", at: serverTimestamp() });
+      await setDoc(ref, Object.assign({ projectNumber: String(projectNumber), name: file.name, bytes: file.size, chunks, by: cloud.currentEmail() || "?", at: serverTimestamp() }, extra || {}));
       if (onProgress) onProgress(chunks + 1, chunks + 1);
     } catch (e) {
       cloud.deletePo(ref.id).catch(() => {});
@@ -199,7 +281,7 @@ const cloud = {
     }
     return { id: ref.id, name: file.name, bytes: file.size };
   },
-  async fetchPo(fileId, onProgress) {
+  async fetchPo(fileId, onProgress, mime) {
     try {
       const meta = await getDoc(doc(db, "poFiles", fileId));
       if (!meta.exists()) throw new Error("This file no longer exists in the cloud.");
@@ -214,13 +296,13 @@ const cloud = {
         parts.push(bytes);
         if (onProgress) onProgress(i + 1, chunks);
       }
-      return new Blob(parts, { type: "application/pdf" });
+      return new Blob(parts, { type: mime || "application/pdf" });
     } catch (e) { throw friendly(e); }
   },
   async deletePo(fileId) {
+    await deleteDoc(doc(db, "poFiles", fileId));
     const snap = await getDocs(collection(db, "poFiles", fileId, "chunks"));
     await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
-    await deleteDoc(doc(db, "poFiles", fileId));
   }
 };
 
@@ -2159,6 +2241,7 @@ input,button,textarea{font-family:inherit}
 ::-webkit-scrollbar-thumb:hover{background:#848c9e;background-clip:content-box;border:3px solid transparent}
 ::-webkit-scrollbar-track{background:#f0f1f5;border-radius:8px}
 ::-webkit-scrollbar-corner{background:#f0f1f5}
+@keyframes sheetPulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
 @keyframes popIn{from{opacity:0;transform:translateY(-6px) scale(.97)}to{opacity:1;transform:none}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes slideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -2212,6 +2295,7 @@ input,button,textarea{font-family:inherit}
     <span title="Every edit is saved automatically the moment you leave a cell" style="display:flex;align-items:center;gap:6px;font-size:10px;font-weight:600;color:rgba(255,255,255,.75);white-space:nowrap;flex:none;margin-right:10px">
       <span style="{{ saveDotStyle }}"></span>{{ saveLabel }}
     </span>
+    <sc-if value="{{ isViewOnly }}"><span title="Your login can see the CRM but not change it" style="font-size:9.5px;font-weight:800;letter-spacing:.06em;color:#1d2233;background:#ffcb00;border-radius:6px;padding:4px 8px;white-space:nowrap;flex:none">VIEW ONLY</span></sc-if>
     <span style="font-size:10px;font-weight:600;color:#fff;white-space:nowrap;flex:none">{{ currentUser }}</span>
     <button onClick="{{ signOut }}" style="background:transparent;border:0;color:rgba(255,255,255,.75);font-size:10px;font-weight:600;cursor:pointer;padding:7px 12px;border-radius:9px;transition:all .16s;white-space:nowrap;flex:none" style-hover="color:#fff;background:rgba(255,255,255,.1)">Sign Out</button>
     <button onClick="{{ saveNow }}" title="Save everything to the cloud right now" style="{{ saveBtnStyle }}" style-hover="filter:brightness(1.12)"><span style="width:13px;height:13px;border:1.5px solid currentColor;border-radius:2px 3px 2px 2px;position:relative;display:block;flex:none"><span style="position:absolute;left:2px;top:-1.5px;width:6px;height:4px;background:currentColor"></span><span style="position:absolute;left:2px;right:2px;bottom:-1.5px;height:4px;border:1.5px solid currentColor;border-bottom:0;border-radius:1px 1px 0 0"></span></span>{{ saveBtnLabel }}</button>
@@ -2333,6 +2417,16 @@ input,button,textarea{font-family:inherit}
                         <sc-if value="{{ c.isText }}"><span style="{{ c.textStyle }}">{{ c.text }}</span></sc-if>
                         <sc-if value="{{ c.isCheckbox }}"><span style="{{ c.boxStyle }}">{{ c.boxMark }}</span></sc-if>
                         <sc-if value="{{ c.isCheck }}"><span style="{{ c.checkStyle }}">✓</span></sc-if>
+                        <sc-if value="{{ c.isSheet }}">
+                          <span title="{{ c.sheetTitle }}" style="{{ c.sheetBox }}" style-hover="background:#f0f2f7">
+                            <svg width="18" height="16" viewBox="0 0 18 16" style="display:block">
+                              <rect x="0.9" y="0.9" width="16.2" height="14.2" rx="3" fill="none" stroke="{{ c.sheetColor }}" stroke-width="1.6"></rect>
+                              <rect x="4.2" y="8.4" width="2.2" height="4.2" rx="0.6" fill="{{ c.sheetColor }}"></rect>
+                              <rect x="7.9" y="4.4" width="2.2" height="8.2" rx="0.6" fill="{{ c.sheetColor }}"></rect>
+                              <rect x="11.6" y="6.6" width="2.2" height="6" rx="0.6" fill="{{ c.sheetColor }}"></rect>
+                            </svg>
+                          </span>
+                        </sc-if>
                         <sc-if value="{{ c.isFile }}">
                           <span style="{{ c.fileStyle }}">
                             <span style="overflow:hidden;text-overflow:ellipsis">{{ c.text }}</span>
@@ -3264,6 +3358,37 @@ input,button,textarea{font-family:inherit}
 
   <sc-if value="{{ filtersOpen }}">
     <div onClick="{{ closeFilters }}" style="position:fixed;inset:0;z-index:60"></div>
+  </sc-if>
+
+  <sc-if value="{{ sheetMenuOpen }}">
+    <div onClick="{{ closeSheetMenu }}" style="position:fixed;inset:0;z-index:105"></div>
+    <div data-sheet-menu="1" style="{{ sheetMenu.style }}">
+      <sc-if value="{{ sheetMenu.hasFile }}">
+        <div style="padding:8px 10px 9px;border-bottom:1px solid #eef0f6;margin-bottom:4px">
+          <div title="{{ sheetMenu.name }}" style="font-size:12.5px;font-weight:700;color:#323338;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sheetMenu.name }}</div>
+          <div style="font-size:11px;color:#8a90a2;margin-top:2px">{{ sheetMenu.meta }}</div>
+        </div>
+        <button onClick="{{ sheetMenu.download }}" style="display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:0;padding:8px 10px;border-radius:7px;font-size:13px;font-weight:600;color:#323338;cursor:pointer;text-align:left;font-family:inherit" style-hover="background:#f0f4ff">
+          <svg width="16" height="16" viewBox="0 0 16 16" style="flex:none"><path d="M8 2.5V11M4.5 7.5 8 11l3.5-3.5M2.5 11v2.5h11V11" fill="none" stroke="#1e9e5a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          Download
+        </button>
+      </sc-if>
+      <sc-if value="{{ sheetMenu.canEdit }}">
+        <button onClick="{{ sheetMenu.upload }}" style="display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:0;padding:8px 10px;border-radius:7px;font-size:13px;font-weight:600;color:#323338;cursor:pointer;text-align:left;font-family:inherit" style-hover="background:#f0f4ff">
+          <svg width="16" height="16" viewBox="0 0 16 16" style="flex:none"><path d="M8 11V2.5M4.5 6 8 2.5 11.5 6M2.5 11v2.5h11V11" fill="none" stroke="#2b6ef0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+          {{ sheetMenu.uploadLabel }}
+        </button>
+        <sc-if value="{{ sheetMenu.hasFile }}">
+          <button onClick="{{ sheetMenu.del }}" style="display:flex;align-items:center;gap:10px;width:100%;background:transparent;border:0;padding:8px 10px;border-radius:7px;font-size:13px;font-weight:600;color:#d83a52;cursor:pointer;text-align:left;font-family:inherit" style-hover="background:#fdf0f2">
+            <svg width="16" height="16" viewBox="0 0 16 16" style="flex:none"><path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" fill="none" stroke="#d83a52" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+            Delete spreadsheet
+          </button>
+        </sc-if>
+        <sc-if value="{{ sheetMenu.empty }}">
+          <div style="font-size:11px;color:#8a90a2;padding:2px 10px 6px">Excel files only (.xlsx, .xls, .xlsm) · up to 3 MB</div>
+        </sc-if>
+      </sc-if>
+    </div>
   </sc-if>
 
   <sc-if value="{{ peoplePickerOpen }}">
@@ -4381,11 +4506,49 @@ class Component extends DCLogic {
   // ---- autosave: every edit is persisted the moment state changes (debounced 300ms) ----
   persistKeys() { return ['mobView', 'holidays', 'memos', 'rows', 'contacts', 'sets', 'contactCols', 'boardColW', 'stageOrder', 'groupBy', 'view', 'accent', 'density', 'concept', 'sidebarOpen', 'collapsed']; }
   dataKey() { return 'timplex-crm-data-v1'; }
+  baseKey() { return 'timplex-crm-base-v1'; }
+  // the cloud version this device last agreed with — the reference point for merging
+  setBase(payload) {
+    try { this.basePayload = JSON.parse(JSON.stringify(payload)); } catch (e) { this.basePayload = null; }
+    if (this.basePayload) { Object.keys(this.basePayload).forEach(k => { if (k.startsWith('__')) delete this.basePayload[k]; }); }
+    try { if (this.basePayload) localStorage.setItem(this.baseKey(), JSON.stringify({ rev: typeof this.rev === 'number' ? this.rev : null, payload: this.basePayload })); } catch (e) {}
+  }
+  currentPayload() { const out = {}; this.persistKeys().forEach(k => { out[k] = this.state[k]; }); return out; }
+  // merge the cloud version into this device's unsaved edits (nothing typed here is thrown away)
+  mergeRemote(remotePayload) {
+    const m = window.TimplexMerge(this.basePayload || remotePayload, this.currentPayload(), remotePayload);
+    if (m.conflicts.length) console.warn('[merge] both sides changed:', m.conflicts);
+    // two people pressed "+ New project" at the same time: both rows are kept, the later one gets the next free number
+    const rows = Array.isArray(m.payload.rows) ? m.payload.rows : [];
+    const remoteIds = new Set((remotePayload.rows || []).map(r => r && r.id));
+    const used = new Set(rows.filter(r => r && remoteIds.has(r.id)).map(r => String(r.number || '').trim()));
+    rows.forEach((r, i) => {
+      if (!r || remoteIds.has(r.id)) return;
+      const n = String(r.number || '').trim();
+      if (n && used.has(n)) {
+        const nn = this.nextProjectNumber(rows);
+        console.warn('[merge] project number ' + n + ' already used in the cloud — renumbered to ' + nn);
+        rows[i] = Object.assign({}, r, { number: nn }); m.renumbered = (m.renumbered || []).concat(n + ' → ' + nn);
+      }
+      used.add(String(rows[i].number || '').trim());
+    });
+    if (m.renumbered) {
+      const txt = 'Someone else created a project with the same number at the same time. Yours is now ' + m.renumbered.join(', ') + '.';
+      if (m.conflicts.length) m.conflicts.push('project renumbered: ' + m.renumbered.join(', '));   // reported together with the field conflicts
+      else this.notice('Project renumbered', txt);
+    }
+    return m;
+  }
   hydrate() {
     let patch = null;
+    let baseRec = null;
+    try { const b = localStorage.getItem(this.baseKey()); baseRec = b ? JSON.parse(b) : null; } catch (e) { baseRec = null; }
+    this.basePayload = null;
     try {
       const raw = localStorage.getItem(this.dataKey());
       const saved = raw ? JSON.parse(raw) : null;
+      // the base is only usable if it belongs to the same cloud version this copy was taken from (another tab may have moved on)
+      if (baseRec && baseRec.payload && saved && typeof saved === 'object' && typeof baseRec.rev === 'number' && baseRec.rev === saved.__rev) this.basePayload = baseRec.payload;
       if (saved && typeof saved === 'object') {
         patch = {};
         this.persistKeys().forEach(k => { if (saved[k] !== undefined) patch[k] = saved[k]; });
@@ -4419,7 +4582,7 @@ class Component extends DCLogic {
     this.editSeq = (this.editSeq || 0) + 1;
     if (this.seedPersist) { this.seedPersist = false; }
     else if (this.migrationSave) { /* data format upgrade after loading the cloud version: not a user edit */ }
-    else { this.localDirty = true; this.localSeed = false; }
+    else if (this.canEdit()) { this.localDirty = true; this.localSeed = false; }
     if (this.state.saveStatus !== 'saving') this.setState({ saveStatus: 'saving' });
     clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => this.writeNow(false), 400);
@@ -4427,23 +4590,28 @@ class Component extends DCLogic {
   // one real write: localStorage first (instant), then Firestore
   writeNow(manual) {
     clearTimeout(this.saveTimer); this.saveTimer = null;
-    // one cloud transaction at a time: a save that arrives while another is in flight runs right after it
-    if (this.saveInFlight) { this.pendingWrite = true; if (manual) this.pendingManual = true; return this.saveInFlight; }
+    if (!this.canEdit() && this.state.authUser) this.localDirty = false;   // a view-only login has nothing the cloud should receive
     this.lastSnap = this.persistKeys().map(k => this.state[k]);
     const out = { __at: new Date().toISOString(), __dirty: !!this.localDirty, __seed: !!this.localSeed, __rev: typeof this.rev === 'number' ? this.rev : null };
     this.persistKeys().forEach(k => { out[k] = this.state[k]; });
-    this.writeLocal(out);
+    this.writeLocal(out);   // always on disk first, even while another transaction is running (tab may close)
+    // one cloud transaction at a time: a save that arrives while another is in flight runs right after it
+    if (this.saveInFlight) { this.pendingWrite = true; if (manual) this.pendingManual = true; return this.saveInFlight; }
     const cloud = this.cloud();
     const flash = () => { if (!manual) return; this.setState({ saveFlash: true }); clearTimeout(this.flashTimer); this.flashTimer = setTimeout(() => this.setState({ saveFlash: false }), 2200); };
     // a forced save (restore, confirmed removal) is consumed here whatever happens next, so it can never leak into a later save
     const force = !!this.forceNext; const reason = this.forceReason || 'autosave'; this.forceNext = false; this.forceReason = ''; this.migrationSave = false;
-    if (cloud && this.state.authUser && this.state.cloudOn) {
+    if (cloud && this.state.authUser && this.state.cloudOn && this.canEdit()) {
       if (this.state.saveStatus !== 'saving') this.setState({ saveStatus: 'saving' });
       const seq = this.editSeq || 0;
       this.saveInFlight = cloud.saveDoc(out, { expectRev: this.rev, force, reason })
         .then((rev) => {
-          this.rev = rev;
-          if ((this.editSeq || 0) === seq) { this.localDirty = false; this.writeLocal(Object.assign({}, out, { __dirty: false, __rev: rev })); }
+          this.rev = rev; this.conflictRetries = 0; this.saveRetries = 0; clearTimeout(this.retryTimer);
+          this.setBase(out);
+          this.flushFileTrash(out);
+          const clean = (this.editSeq || 0) === seq;   // no edit arrived while this transaction ran
+          if (clean) this.localDirty = false;
+          this.writeLocal(Object.assign({ __at: out.__at, __dirty: !clean, __seed: false, __rev: rev }, this.currentPayload()));
           this.setState({ saveStatus: 'saved', savedAt: out.__at, saveError: '' }); flash();
           if (this.state.authUser && this.state.authUser.admin) {
             this.savesSincePrune = (this.savesSincePrune || 0) + 1;
@@ -4460,16 +4628,31 @@ class Component extends DCLogic {
     this.setState({ saveStatus: 'saved', savedAt: out.__at }); flash();
     return Promise.resolve();
   }
+  // A replaced/removed attachment is deleted from the cloud only after a saved version of the CRM no longer
+  // points to it — if that save never lands, the file is still there (an orphan is better than a broken link).
+  trashFile(id) { if (id) this.fileTrash = (this.fileTrash || []).filter(x => x !== id).concat(id); }
+  flushFileTrash(saved) {
+    const cloud = this.cloud(); if (!cloud || !(this.fileTrash || []).length) return;
+    const used = new Set(); (saved.rows || []).forEach(r => { if (r) { if (r.sheetRef) used.add(r.sheetRef); if (r.poRef) used.add(r.poRef); } });
+    const go = this.fileTrash.filter(id => !used.has(id));
+    this.fileTrash = this.fileTrash.filter(id => used.has(id));
+    go.forEach(id => cloud.deletePo(id).catch(e => console.warn('[attachments] could not delete ' + id, e)));
+  }
   writeLocal(out) {
     try { localStorage.setItem(this.dataKey(), JSON.stringify(out)); } catch (e) { console.warn('[autosave] local', e); }
   }
   // the cloud refused our save: never overwrite blindly, show what happened and let the user decide
   cloudSaveFailed(e, out) {
     if (e && e.code === 'rev-conflict' && e.remote && e.remote.payload) {
-      console.warn('[autosave] rev conflict — applying the newer cloud version');
-      const who = this.cloudUserName(e.remote.updatedBy), when = this.fmtWhen(e.remote.__at);
-      this.applyRemote(e.remote.payload, false, e.remote.rev);
-      this.notice('Updated from the cloud', who + ' saved at ' + when + ' while you were editing. The cloud version was loaded — please check that your last change is still there.');
+      // someone else saved first: merge their version with this device's edits and save again
+      this.conflictRetries = (this.conflictRetries || 0) + 1;
+      const who = this.cloudUserName(e.remote.updatedBy);
+      const m = this.mergeRemote(e.remote.payload);
+      console.warn('[autosave] rev conflict with ' + who + ' — merged, retry #' + this.conflictRetries);
+      this.applyRemote(m.payload, false, e.remote.rev, { keepDirty: true, base: e.remote.payload });
+      if (this.conflictRetries <= 5) { this.lastSnap = null; this.writeNow(false); }
+      else { this.setState({ saveStatus: 'error', saveError: 'Could not save yet: the cloud keeps changing. Retrying…' }); this.conflictRetries = 0; this.armRetry(); }
+      if (m.conflicts.length) this.notice('Edited at the same time', who + ' changed the same field(s) you did: ' + m.conflicts.slice(0, 3).join(', ') + (m.conflicts.length > 3 ? '…' : '') + '. Your value was kept — please double-check.');
       return;
     }
     if (e && e.code === 'wipe-guard') {
@@ -4477,7 +4660,16 @@ class Component extends DCLogic {
       return;
     }
     console.error('[autosave] cloud failed', e);
-    this.setState({ saveStatus: 'error', saveError: (e && e.message) || 'cloud error' });
+    const denied = !!(e && (e.code === 'permission-denied' || /permission|insufficient/i.test(e.message || '')));
+    this.setState({ saveStatus: 'error', saveError: denied ? 'Save refused: this login cannot change the CRM' : ((e && e.message) || 'cloud error') });
+    // keep trying on our own (10 s, 20 s, 40 s … up to 2 min): an edit must never sit on this device waiting for a reload
+    if (!denied) this.armRetry();
+  }
+  armRetry() {
+    this.saveRetries = (this.saveRetries || 0) + 1;
+    clearTimeout(this.retryTimer);
+    const wait = Math.min(120000, (window.__retryMs || 10000) * Math.pow(2, this.saveRetries - 1));
+    this.retryTimer = setTimeout(() => { if (this.localDirty && !this.saveInFlight && this.state.cloudOn && this.state.authUser && this.canEdit()) { this.lastSnap = null; this.writeNow(false); } }, wait);
   }
   componentDidUpdate() {
     if (this.measure) this.measure();
@@ -4521,6 +4713,7 @@ class Component extends DCLogic {
       { k: 'lead', label: 'Lead Source', w: 152, type: 'label', set: 'lead' },
       { k: 'contacts', label: 'Contacts', w: 190, type: 'contacts', align: 'center' },
       { k: 'proposal', label: 'Proposal Price', w: 138, type: 'money', align: 'center' },
+      { k: 'sheet', label: 'Spreadsheet Proposal', w: 174, type: 'sheet', align: 'center' },
       { k: 'signed', label: 'Signed proposal', w: 128, type: 'check' },
       { k: 'deal', label: 'Deal Price Closed', w: 150, type: 'money', align: 'center' },
       { k: 'po', label: 'PO Attachment', w: 168, type: 'file', align: 'center' }
@@ -4569,6 +4762,11 @@ class Component extends DCLogic {
         cell.isValue = true;
         cell.value = rws.filter(r => r.signed).length + ' / ' + rws.length;
         cell.sub = 'signed';
+        cell.valStyle = 'font-size:13px;font-weight:500;color:#323338';
+      } else if (c.k === 'sheet') {
+        cell.isValue = true;
+        cell.value = String(rws.filter(r => r.sheet).length);
+        cell.sub = 'files';
         cell.valStyle = 'font-size:13px;font-weight:500;color:#323338';
       } else if (c.k === 'po') {
         cell.isValue = true;
@@ -4889,14 +5087,23 @@ class Component extends DCLogic {
         this.setState({ cloudOn: true });
         this.forceNext = true; this.forceReason = 'first import';
         this.lastSnap = null; await this.writeNow(false);
-      } else if (decision === 'fast-forward') {
+      } else if (decision === 'fast-forward' && this.canEdit()) {
         // this device edited the exact version the cloud still holds (e.g. offline): plain save, rev-checked
         this.rev = typeof remote.rev === 'number' ? remote.rev : 0;
+        if (!this.basePayload) this.setBase(remote.payload);   // the cloud still holds the version these edits were made on
         this.setState({ cloudOn: true });
         this.forceReason = 'edits made offline';
         this.lastSnap = null; await this.writeNow(false);
-      } else if (decision === 'ask') {
-        // both sides have something: this device was edited after the last cloud save. Never guess.
+      } else if (decision === 'ask' && this.basePayload && this.canEdit()) {
+        // this device has unsaved edits and the cloud moved on: merge them (nothing is thrown away) and save
+        const m = this.mergeRemote(remote.payload);
+        this.applyRemote(m.payload, true, remote.rev, { keepDirty: true, base: remote.payload });
+        this.setState({ cloudOn: true });
+        this.forceReason = 'edits made offline, merged';
+        this.lastSnap = null; await this.writeNow(false);
+        this.notice('Changes merged', 'Edits made on this device while offline were merged with the newer cloud version.' + (m.conflicts.length ? ' Both changed: ' + m.conflicts.slice(0, 3).join(', ') + '.' : ''), true);
+      } else if (decision === 'ask' && this.canEdit()) {
+        // no reference version to merge from (older app) — let the user choose, never guess
         this.pendingRemote = remote;
         this.setState({ syncChoice: {
           localAt: this.fmtWhen(this.state.savedAt), localRows: (this.state.rows || []).length,
@@ -4933,9 +5140,18 @@ class Component extends DCLogic {
     if (this.unsubRemote) this.unsubRemote();
     this.unsubRemote = cloud.onRemote((d) => {
       if (!d || !d.payload) return;
-      if (this.state.saveStatus === 'saving') return;              // our own write is in flight
+      if (this.saveInFlight || this.state.saveStatus === 'saving') return; // our own write is in flight: a conflict, if any, is merged on its result
       if (typeof d.rev === 'number' && typeof this.rev === 'number' && d.rev <= this.rev) return; // already have it
       if (typeof d.rev !== 'number' && d.__at && this.state.savedAt && d.__at <= this.state.savedAt) return;
+      if ((this.localDirty || this.saveTimer) && this.canEdit()) {
+        // this device has edits not yet in the cloud: merge, keep them, and save the merged result
+        const who = this.cloudUserName(d.updatedBy);
+        const m = this.mergeRemote(d.payload);
+        this.applyRemote(m.payload, false, d.rev, { keepDirty: true, base: d.payload });
+        this.lastSnap = null; this.scheduleSave();
+        if (m.conflicts.length) this.notice('Edited at the same time', who + ' changed the same field(s) you did: ' + m.conflicts.slice(0, 3).join(', ') + '. Your value was kept — please double-check.');
+        return;
+      }
       this.applyRemote(d.payload, false, d.rev);
     });
   }
@@ -5021,6 +5237,28 @@ class Component extends DCLogic {
     try { this.saveBlob(new Blob([this.b64bytes(b.xlsx)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'timplex-crm-leads-bids-' + b.id + '.xlsx'); }
     catch (e) { this.notice('Download failed', (e && e.message) || String(e)); }
   }
+  // ---- roles ----
+  canEdit() { const u = this.state.authUser; return !!(u && u.edit); }
+  isViewer() { const u = this.state.authUser; return !!(u && !u.edit); }
+  viewOnly() { if (!this.state.notice) this.notice('View only', 'Your login can see the CRM but not change it. Ask Elisson, Paul or Doug to make this change.'); }
+  // Every change to the shared data goes through setState. A viewer's own edits are stopped here,
+  // whatever button they came from; internal updates (cloud sync, data upgrade) are not affected.
+  setState(update, cb) {
+    const DATA = ['rows', 'contacts', 'sets', 'holidays', 'memos', 'stageOrder', 'contactCols'];
+    if (this.hydrated && !this.muteSave && this.isViewer()) {
+      const strip = (p) => { const o = {}; let blocked = false; Object.keys(p || {}).forEach(k => { if (DATA.includes(k)) blocked = true; else o[k] = p[k]; }); return { o, blocked }; };
+      if (typeof update === 'function') {
+        const fn = update; let blocked = false;
+        update = (s) => { const r = strip(fn(s)); blocked = r.blocked; return r.o; };
+        return super.setState(update, () => { if (blocked) this.viewOnly(); if (cb) cb(); });
+      }
+      const r = strip(update);
+      if (r.blocked) return super.setState(r.o, () => { this.viewOnly(); if (cb) cb(); });
+    }
+    return super.setState(update, cb);
+  }
+  currentPerson() { const u = this.state.authUser; return u ? (this.people().find(p => p.name === u.name) || null) : null; }
+
   // Contact search: every typed word must appear in name, company or e-mail (accents and case ignored).
   // Order: name starts with the text, then a word of the name starts with it, then anything else; A–Z inside each group.
   searchContacts(list, q) {
@@ -5047,13 +5285,13 @@ class Component extends DCLogic {
     return u ? u.name : (email && email !== '?' ? email : 'someone');
   }
   fmtWhen(iso) { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'unknown time'; }
-  applyRemote(payload, initial, rev) {
+  applyRemote(payload, initial, rev, opts) {
+    opts = opts || {};
     this.rev = typeof rev === 'number' ? rev : 0;
-    const hadEdits = !!this.localDirty && !initial;
-    clearTimeout(this.saveTimer); this.saveTimer = null;   // a pending autosave would only write this same version back
+    clearTimeout(this.saveTimer); this.saveTimer = null;   // (with keepDirty the caller schedules the save of the merged data)
     if (initial) { this.forceNext = false; this.forceReason = ''; }
-    this.localDirty = false; this.localSeed = false;
-    if (hadEdits) this.notice('Updated from the cloud', 'A newer version was saved by someone else while this device had unsaved changes. The cloud version was loaded — please check your last change.');
+    this.setBase(opts.base || payload);
+    this.localDirty = !!opts.keepDirty; this.localSeed = false;
     const patch = {};
     this.persistKeys().forEach(k => { if (payload[k] !== undefined) patch[k] = payload[k]; });
     if (Array.isArray(patch.rows) && !patch.rows.length) delete patch.rows;
@@ -5069,7 +5307,7 @@ class Component extends DCLogic {
       this.muteSave = false;
       this.lastSnap = this.persistKeys().map(k => this.state[k]);
       if (migrated) { this.lastSnap = null; this.migrationSave = true; this.forceReason = 'data format upgrade'; this.scheduleSave(); }
-      this.writeLocal(Object.assign({ __at: patch.savedAt, __dirty: false, __seed: false, __rev: this.rev }, payload));
+      this.writeLocal(Object.assign({ __at: patch.savedAt, __dirty: !!opts.keepDirty, __seed: false, __rev: this.rev }, payload));
     });
   }
 
@@ -5334,12 +5572,13 @@ class Component extends DCLogic {
   users() {
     // Mirrors Firebase Auth. Only Elisson is admin (manual project-number override).
     return [
-      { login: 'elisson', name: 'Elisson Nunes', initials: 'EN', role: 'admin', admin: true, active: true },
-      { login: 'paul', name: 'Paul Quasius', initials: 'PQ', role: 'member', admin: false, active: true },
-      { login: 'matheus', name: 'Matheus Monteiro', initials: 'MM', role: 'member', admin: false, active: true },
-      { login: 'daniel', name: 'Daniel Correa', initials: 'DC', role: 'member', admin: false, active: true },
-      { login: 'doug', name: 'Doug Slate', initials: 'DS', role: 'member', admin: false, active: true },
-      { login: 'charley', name: 'Charley Wood', initials: 'CW', role: 'member', admin: false, active: true }
+      // role: admin = everything; editor = adds and edits projects, contacts, labels; viewer = read only
+      { login: 'elisson', name: 'Elisson Nunes', initials: 'EN', role: 'admin', admin: true, edit: true, active: true },
+      { login: 'paul', name: 'Paul Quasius', initials: 'PQ', role: 'editor', admin: false, edit: true, active: true },
+      { login: 'doug', name: 'Doug Slate', initials: 'DS', role: 'editor', admin: false, edit: true, active: true },
+      { login: 'matheus', name: 'Matheus Monteiro', initials: 'M', role: 'viewer', admin: false, edit: false, active: true },
+      { login: 'daniel', name: 'Daniel Correa', initials: 'DC', role: 'viewer', admin: false, edit: false, active: true },
+      { login: 'charley', name: 'Charley Wood', initials: 'CW', role: 'viewer', admin: false, edit: false, active: true }
     ];
   }
 
@@ -5378,7 +5617,98 @@ class Component extends DCLogic {
 
   notice(title, text, ok) { this.setState({ notice: { title, text, ok: !!ok } }); }
 
+  // ---- Spreadsheet Proposal: one Excel file per project, stored like the PO PDFs (poFiles, kind 'sheet') ----
+  sheetMime(name) {
+    const n = String(name || '').toLowerCase();
+    if (/\.xlsm$/.test(n)) return 'application/vnd.ms-excel.sheet.macroEnabled.12';
+    if (/\.xls$/.test(n)) return 'application/vnd.ms-excel';
+    return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  }
+  setSheetBusy(rowId, text) {
+    this.setState(s => { const b = Object.assign({}, s.sheetBusy || {}); if (text) b[rowId] = text; else delete b[rowId]; return { sheetBusy: b }; });
+  }
+  openSheetMenu(e, r) {
+    if ((this.state.sheetBusy || {})[r.id]) return;
+    if (!r.sheet && !this.canEdit()) return;                // view-only login, nothing attached: nothing to do
+    const b = e.currentTarget.getBoundingClientRect();
+    const h = r.sheet ? (this.canEdit() ? 176 : 96) : 74;
+    const x = Math.max(8, Math.min(b.left + b.width / 2 - 128, window.innerWidth - 264));
+    const y = b.bottom + 4 + h > window.innerHeight - 8 ? Math.max(8, b.top - 4 - h) : b.bottom + 4;
+    this.setState({ sheetMenu: { rowId: r.id, x, y } });
+  }
+  pickSheet(rowId) {
+    if (!this.canEdit()) return this.viewOnly();
+    const cloud = this.cloud();
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx,.xls,.xlsm,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel.sheet.macroEnabled.12';
+    input.onchange = () => { const f = input.files && input.files[0]; if (f) this.uploadSheet(rowId, f); };
+    this.sheetInput = input;   // (tests reach the chosen file through here)
+    input.click();
+  }
+  async uploadSheet(rowId, f) {
+    if (!this.canEdit()) return this.viewOnly();
+    if (!/\.(xlsx|xls|xlsm)$/i.test(f.name || '')) return this.notice('Only Excel files', 'Please choose an Excel spreadsheet (.xlsx, .xls or .xlsm).');
+    if (f.size > 3 * 1024 * 1024) return this.notice('File too large', 'The spreadsheet must be smaller than 3 MB (this one is ' + (f.size / 1048576).toFixed(1) + ' MB).');
+    if (!f.size) return this.notice('Empty file', 'This file is empty — please choose the spreadsheet again.');
+    const cloud = this.cloud();
+    const row = this.state.rows.find(r => r.id === rowId);
+    if (!row) return;
+    const me = this.currentPerson();
+    this.setSheetBusy(rowId, 'Uploading…');
+    try {
+      let ref = '';
+      if (cloud) {
+        const res = await cloud.uploadPo(row.number || rowId, f, (done, total) => this.setSheetBusy(rowId, 'Uploading ' + Math.round(done / total * 100) + '%'), { kind: 'sheet', type: this.sheetMime(f.name) });
+        ref = res.id;
+      } else {
+        this.localBlobs = this.localBlobs || {};
+        this.localBlobs['sheet:' + rowId] = f;
+      }
+      // the project was deleted, or someone signed out, while the file was uploading: don't leave the file behind
+      if (!this.canEdit() || !this.state.rows.some(r => r.id === rowId)) { if (cloud && ref) cloud.deletePo(ref).catch(() => {}); return; }
+      // the previous file (Replace) is removed only after the new one is safely stored
+      const cur = this.state.rows.find(r => r.id === rowId);
+      const old = cur && cur.sheetRef;
+      this.setState(s => ({ rows: s.rows.map(r => r.id === rowId ? Object.assign({}, r, {
+        sheet: f.name, sheetRef: ref, sheetSize: f.size, sheetBy: me ? me.initials : '', sheetAt: new Date().toISOString()
+      }) : r) }));
+      if (cloud && old && old !== ref) this.trashFile(old);
+    } catch (e) {
+      console.error('[sheet upload]', e);
+      this.notice('Upload failed', (e && e.message) || 'Unknown error');
+    } finally { this.setSheetBusy(rowId, null); }
+  }
+  async downloadSheet(row) {
+    const cloud = this.cloud();
+    const name = row.sheet || 'spreadsheet.xlsx';
+    let blob = null;
+    if (row.sheetRef && cloud) {
+      this.setSheetBusy(row.id, 'Downloading…');
+      try { blob = await cloud.fetchPo(row.sheetRef, (done, total) => this.setSheetBusy(row.id, 'Downloading ' + Math.round(done / total * 100) + '%'), this.sheetMime(name)); }
+      catch (e) { console.error('[sheet download]', e); this.notice('Download failed', (e && e.message) || 'Unknown error'); }
+      finally { this.setSheetBusy(row.id, null); }
+    } else blob = (this.localBlobs || {})['sheet:' + row.id] || null;
+    if (!blob) { if (!(row.sheetRef && cloud)) this.notice('Spreadsheet unavailable', 'This spreadsheet is not stored in the cloud. Upload it again.'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); a.remove();
+    this.lastDownload = { name, size: blob.size, type: blob.type };
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+  removeSheet(row) {
+    if (!this.canEdit()) return this.viewOnly();
+    if (!window.confirm('Delete the spreadsheet "' + row.sheet + '" from project ' + (row.number || '') + '?')) return;
+    const cloud = this.cloud();
+    const ref = row.sheetRef;
+    this.setState(s => ({ rows: s.rows.map(r => r.id === row.id ? Object.assign({}, r, { sheet: '', sheetRef: '', sheetSize: 0, sheetBy: '', sheetAt: '' }) : r) }));
+    if (cloud && ref) this.trashFile(ref);
+    if (this.localBlobs) delete this.localBlobs['sheet:' + row.id];
+  }
+
   pickPdf(rowId) {
+    if (!this.canEdit()) return this.viewOnly();
     const cloud = this.cloud();
     const input = document.createElement('input');
     input.type = 'file';
@@ -5531,9 +5861,10 @@ class Component extends DCLogic {
   }
 
   removePdf(row) {
+    if (!this.canEdit()) return this.viewOnly();
     if (!window.confirm('Remove "' + row.po + '" from this project?')) return;
     const cloud = this.cloud();
-    if (cloud && row.poRef) cloud.deletePo(row.poRef).catch(() => {});
+    if (cloud && row.poRef) this.trashFile(row.poRef);
     this.setState(s => ({ rows: s.rows.map(r => r.id === row.id ? Object.assign({}, r, { po: '', poRef: '', poUrl: '', poBackend: '', poSize: 0 }) : r) }));
   }
 
@@ -5578,13 +5909,15 @@ class Component extends DCLogic {
     const c = this.cloud();
     const pending = !!this.saveTimer || !!this.localDirty || !!this.saveInFlight;
     clearTimeout(this.saveTimer); this.saveTimer = null;
-    if (this.saveInFlight) { try { await this.saveInFlight; } catch (e) {} }
+    for (let i = 0; i < 10 && this.saveInFlight; i++) { try { await this.saveInFlight; } catch (e) {} }   // a conflict retry starts a new one
+    clearTimeout(this.retryTimer);
+    if (!this.canEdit()) this.localDirty = false;
     const out = { __at: new Date().toISOString(), __dirty: !!this.localDirty, __seed: !!this.localSeed, __rev: typeof this.rev === 'number' ? this.rev : null };
     this.persistKeys().forEach(k => { out[k] = this.state[k]; });
     this.writeLocal(out);
-    if (c && this.state.authUser && this.state.cloudOn && pending && this.localDirty) {
+    if (c && this.state.authUser && this.state.cloudOn && pending && this.localDirty && this.canEdit()) {
       this.setState({ saveStatus: 'saving' });
-      try { this.rev = await c.saveDoc(out, { expectRev: this.rev, reason: 'sign-out' }); this.localDirty = false; this.writeLocal(Object.assign({}, out, { __dirty: false, __rev: this.rev })); }
+      try { this.rev = await c.saveDoc(out, { expectRev: this.rev, reason: 'sign-out' }); this.localDirty = false; this.setBase(out); this.flushFileTrash(out); this.writeLocal(Object.assign({}, out, { __dirty: false, __rev: this.rev })); }
       catch (e) {
         console.error('[sign-out save]', e);
         this.cloudSaveFailed(e, out);   // rev conflict / wipe guard: handled with the usual dialogs, listener stays on
@@ -5595,7 +5928,7 @@ class Component extends DCLogic {
     if (this.unsubRemote) { this.unsubRemote(); this.unsubRemote = null; }
     if (c) { try { await c.logout(); } catch (e) {} }
     this.muteSave = true;
-    this.setState({ authUser: null, loginUser: '', loginPass: '', loginError: '', cloudOn: false, saveStatus: 'saved', savedAt: out.__at, settings: false, pdfView: null, notice: null },
+    this.setState({ authUser: null, loginUser: '', loginPass: '', loginError: '', cloudOn: false, saveStatus: 'saved', savedAt: out.__at, settings: false, pdfView: null, notice: null, sheetMenu: null, sheetBusy: {} },
       () => { this.muteSave = false; this.lastSnap = this.persistKeys().map(k => this.state[k]); });
   }
 
@@ -5627,10 +5960,10 @@ class Component extends DCLogic {
   }
 
   // YYMMNN — year (2 digits) + month (2 digits) + sequence, restarting at 01 each month.
-  nextProjectNumber() {
+  nextProjectNumber(rows) {
     const d = new Date();
     const prefix = String(d.getFullYear() % 100).padStart(2, '0') + String(d.getMonth() + 1).padStart(2, '0');
-    const seqs = this.state.rows
+    const seqs = (rows || this.state.rows)
       .map(r => String(r.number || '').trim())
       .filter(n => n.length >= 6 && n.slice(0, 4) === prefix)
       .map(n => parseInt(n.slice(4), 10))
@@ -5769,7 +6102,9 @@ class Component extends DCLogic {
               cell.isPill = !!r.by; cell.text = r.by;
               cell.style = base + 'justify-content:center';
               cell.pillStyle = 'width:25px;height:25px;border-radius:50%;background:' + (r.byColor || '#c4c4c4') + ';color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center';
+              // "Added by" is the record of who entered the project: filled automatically, then locked
               cell.onClick = (e) => {
+                if (r.by && !(st.authUser && st.authUser.admin)) { this.notice('Added by', 'This shows who entered the project and cannot be changed.'); return; }
                 const b = e.currentTarget.getBoundingClientRect();
                 this.setState({ peoplePicker: { rowId: r.id, x: Math.max(8, Math.min(b.left - 40, window.innerWidth - 330)), y: Math.min(b.bottom + 4, window.innerHeight - 230) } });
               };
@@ -5787,6 +6122,15 @@ class Component extends DCLogic {
               cell.style = base + 'justify-content:center';
               cell.checkStyle = 'font-size:15px;font-weight:900;color:' + (r.signed ? '#00c875' : '#e6e9f1');
               cell.onClick = () => this.setField(r.id, 'signed', !r.signed);
+            } else if (c.type === 'sheet') {
+              // small dashboard icon: grey = no spreadsheet, green = spreadsheet attached
+              const busy = (st.sheetBusy || {})[r.id];
+              cell.isSheet = true;
+              cell.style = base + 'justify-content:center;cursor:' + (busy ? 'wait' : (r.sheet || this.canEdit() ? 'pointer' : 'default'));
+              cell.sheetColor = busy ? '#2b6ef0' : (r.sheet ? '#1e9e5a' : '#a3a9b8');
+              cell.sheetBox = 'display:inline-flex;padding:5px;border-radius:6px;' + (busy ? 'animation:sheetPulse 1s ease-in-out infinite' : '');
+              cell.sheetTitle = busy ? busy : (r.sheet ? r.sheet : (this.canEdit() ? 'Upload a spreadsheet' : 'No spreadsheet'));
+              cell.onClick = (e) => this.openSheetMenu(e, r);
             } else if (c.type === 'file') {
               cell.isFile = true;
               cell.text = r.poBusy ? (typeof r.poBusy === 'string' ? r.poBusy : 'Uploading…') : (r.po ? '📄 ' + r.po : '+ Upload PDF');
@@ -5915,6 +6259,25 @@ class Component extends DCLogic {
           pick: () => { setF(p.col, p.multi ? [] : ''); this.setState({ picker: null }); }
         }]),
         edit: () => this.setState({ picker: null, settings: true })
+      };
+    }
+
+    // ---- Spreadsheet Proposal menu ----
+    const sm = st.sheetMenu;
+    let sheetMenu = null;
+    const srow = sm ? st.rows.find(r => r.id === sm.rowId) : null;
+    if (sm && srow) {
+      const when = srow.sheetAt ? new Date(srow.sheetAt) : null;
+      sheetMenu = {
+        style: 'position:fixed;z-index:110;left:' + sm.x + 'px;top:' + sm.y + 'px;width:256px;background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(20,25,50,.18),0 0 0 1px rgba(0,0,0,.05);padding:6px;animation:popIn .14s both',
+        hasFile: !!srow.sheet, empty: !srow.sheet, canEdit: this.canEdit(),
+        name: srow.sheet || '',
+        meta: [srow.sheetSize ? Math.max(1, Math.round(srow.sheetSize / 1024)) + ' KB' : '', srow.sheetBy ? 'uploaded by ' + srow.sheetBy : '',
+               when && !isNaN(when) ? when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''].filter(Boolean).join(' · '),
+        uploadLabel: srow.sheet ? 'Replace (upload a new one)' : 'Upload spreadsheet',
+        upload: () => { this.setState({ sheetMenu: null }); this.pickSheet(srow.id); },
+        download: () => { this.setState({ sheetMenu: null }); this.downloadSheet(srow); },
+        del: () => { this.setState({ sheetMenu: null }); this.removeSheet(srow); }
       };
     }
 
@@ -6418,6 +6781,7 @@ class Component extends DCLogic {
       loginFieldStyle: 'width:100%;margin-top:5px;border:1.5px solid ' + (st.loginError ? '#e2445c' : '#b9cfe0') + ';border-radius:6px;padding:8px 9px;font-size:11px;color:#1d2233;outline:0;background:#fff;transition:border-color .16s',
       passFieldStyle: 'width:100%;margin-top:5px;border:1px solid ' + (st.loginError ? '#e2445c' : '#dfe3e8') + ';border-radius:6px;padding:8px 9px;font-size:11px;color:#1d2233;outline:0;background:#fff;transition:border-color .16s',
       accent, headCells, groups, picker, pickerStyle, settingSets, ...mobExtra,
+      sheetMenu, sheetMenuOpen: !!sheetMenu, closeSheetMenu: () => this.setState({ sheetMenu: null }),
       peoplePicker, peoplePickerOpen: !!pp,
       closePeoplePicker: () => this.setState({ peoplePicker: null }),
       datePicker, datePickerOpen: !!dp,
@@ -6587,6 +6951,7 @@ class Component extends DCLogic {
         : 'display:inline-flex;align-items:center;gap:6px;background:#f3f5fb;color:#676879;font-size:11.5px;font-weight:700;border-radius:20px;padding:4px 10px',
       adminStatus: st.adminEdit ? 'Manual editing unlocked' : 'Locked — numbers are automatic',
       isAdminUser: !!(st.authUser && st.authUser.admin),
+      isViewOnly: this.isViewer(), canEditData: this.canEdit(),
       unlockAdmin: () => this.setState({ adminEdit: true, adminError: '' }),
       lockAdmin: () => this.setState({ adminEdit: false, adminName: '', adminError: '' }),
       adminError: st.adminError || '',
@@ -6624,7 +6989,7 @@ class Component extends DCLogic {
       pdfRef: this.pdfRefFn || (this.pdfRefFn = (el) => { this.pdfHost = el; if (el) this.renderPdfPages(); }),
       openPdfTab: () => this.openPdfTab(),
       exportBackup: () => this.exportBackup(), importBackup: () => this.importBackup(),
-      addRow: () => this.setState(s => ({ rows: s.rows.concat({ id: 'n' + Date.now(), number: this.nextProjectNumber(), name: 'NEW PROJECT NAME', old: '', city: '', stage: 'New Lead', estimator: 'Undefined', tool: '', metric: '', notes: [], scope: [], received: '', dStart: '', due: '', area: '', by: '', byColor: '', lead: 'None', contacts: [], group: 'New Leads', proposal: '', signed: false, deal: '', po: '' }) })),
+      addRow: () => this.setState(s => ({ rows: s.rows.concat({ id: 'n' + Date.now(), number: this.nextProjectNumber(), name: 'NEW PROJECT NAME', old: '', city: '', stage: 'New Lead', estimator: 'Undefined', tool: '', metric: '', notes: [], scope: [], received: '', dStart: '', due: '', area: '', by: (this.currentPerson() || {}).initials || '', byColor: (this.currentPerson() || {}).color || '', lead: 'None', contacts: [], group: 'New Leads', proposal: '', signed: false, deal: '', po: '' }) })),
       isBrowser: st.device === 'browser', isTablet: st.device === 'tablet', isPhone: st.device === 'phone',
       setBrowser: () => this.setState({ device: 'browser' }), setTablet: () => this.setState({ device: 'tablet' }), setPhone: () => this.setState({ device: 'phone' }),
       dvBrowser: dev(st.device === 'browser'), dvTablet: dev(st.device === 'tablet'), dvPhone: dev(st.device === 'phone'),
